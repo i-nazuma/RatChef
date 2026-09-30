@@ -1,6 +1,16 @@
 package com.ratchef.ui
 
 import android.content.Intent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +75,24 @@ fun ShoppingScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val checked = vm.shopping.filter { it.checked }
     val suggestions = vm.mergeSuggestions
     val sections = if (byRecipe) groupByRecipe(open, german) else groupByAisle(open, german)
+
+    // Ticking an item: the checkbox and strike-through animate in place first, then the item
+    // slides into "In the cart" (or back up) and briefly lights up where it lands.
+    val scope = rememberCoroutineScope()
+    val pending = remember { mutableStateMapOf<String, Boolean>() }
+    var landed by remember { mutableStateOf<String?>(null) }
+    fun toggle(item: ShoppingItem) {
+        if (item.id in pending) return
+        pending[item.id] = !item.checked
+        scope.launch {
+            delay(450)
+            vm.toggleItem(item.id)
+            pending.remove(item.id)
+            landed = item.id
+            delay(1200)
+            if (landed == item.id) landed = null
+        }
+    }
 
     fun addItem() {
         if (newItem.isNotBlank()) {
@@ -139,15 +167,35 @@ fun ShoppingScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             if (suggestions.isNotEmpty()) {
-                item(key = "suggestions") { SuggestionsCard(vm, suggestions, german) }
+                item(key = "suggestions") {
+                    Box(Modifier.animateItem()) { SuggestionsCard(vm, suggestions, german) }
+                }
             }
             sections.forEach { (title, sectionItems) ->
-                item(key = "h-$title") { SectionHeader(title) }
-                items(sectionItems, key = { it.id }) { ItemRow(it, vm, german, showSources = !byRecipe || title == severalLabel(german)) }
+                item(key = "h-$title") { SectionHeader(title, Modifier.animateItem()) }
+                items(sectionItems, key = { it.id }) {
+                    ItemRow(
+                        it, vm, german,
+                        showSources = !byRecipe || title == severalLabel(german),
+                        checked = pending[it.id] ?: it.checked,
+                        highlight = landed == it.id,
+                        onToggle = { toggle(it) },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
             }
             if (checked.isNotEmpty()) {
-                item(key = "h-cart") { SectionHeader("In the cart") }
-                items(checked, key = { it.id }) { ItemRow(it, vm, german, showSources = false) }
+                item(key = "h-cart") { SectionHeader("In the cart", Modifier.animateItem()) }
+                items(checked, key = { it.id }) {
+                    ItemRow(
+                        it, vm, german,
+                        showSources = false,
+                        checked = pending[it.id] ?: it.checked,
+                        highlight = landed == it.id,
+                        onToggle = { toggle(it) },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
             }
         }
     }
@@ -180,12 +228,12 @@ private fun groupByRecipe(items: List<ShoppingItem>, german: Boolean): List<Pair
 }
 
 @Composable
-private fun SectionHeader(title: String) {
+private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
     Text(
         title,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+        modifier = modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
     )
 }
 
@@ -196,7 +244,7 @@ private fun SuggestionsCard(vm: AppViewModel, suggestions: List<MergeSuggestion>
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
-        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)) {
+        Column(Modifier.animateContentSize().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (suggestions.size == 1) "1 thing could be merged" else "${suggestions.size} things could be merged",
@@ -247,24 +295,38 @@ private fun reasonText(reason: String) = when (reason) {
 }
 
 @Composable
-private fun ItemRow(item: ShoppingItem, vm: AppViewModel, german: Boolean, showSources: Boolean) {
+private fun ItemRow(
+    item: ShoppingItem,
+    vm: AppViewModel,
+    german: Boolean,
+    showSources: Boolean,
+    checked: Boolean,
+    highlight: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val textColor by animateColorAsState(
+        if (checked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        tween(250), label = "text",
+    )
+    val iconAlpha by animateFloatAsState(if (checked) 0.4f else 1f, tween(250), label = "icon")
+    val background by animateColorAsState(
+        if (highlight) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+        tween(if (highlight) 200 else 900), label = "landed",
+    )
     Row(
-        Modifier.fillMaxWidth().clickable { vm.toggleItem(item.id) }.padding(start = 4.dp, end = 4.dp),
+        modifier.fillMaxWidth().background(background).clickable(onClick = onToggle).padding(start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked = item.checked, onCheckedChange = { vm.toggleItem(item.id) })
-        VeggieIcon(
-            Veggie.forIngredient(item.ingredient.name),
-            size = 20.dp,
-            modifier = Modifier.alpha(if (item.checked) 0.4f else 1f),
-        )
+        Checkbox(checked = checked, onCheckedChange = { onToggle() })
+        VeggieIcon(Veggie.forIngredient(item.ingredient.name), size = 20.dp, modifier = Modifier.alpha(iconAlpha))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 ShoppingFormat.line(item.ingredient, german),
                 style = MaterialTheme.typography.bodyLarge,
-                textDecoration = if (item.checked) TextDecoration.LineThrough else null,
-                color = if (item.checked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                textDecoration = if (checked) TextDecoration.LineThrough else null,
+                color = textColor,
             )
             if (showSources && item.sources.isNotEmpty()) {
                 Text(

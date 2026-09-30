@@ -1,5 +1,14 @@
 package com.ratchef.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -197,12 +206,24 @@ private fun PortionsCard(base: Int, target: Double, onChange: (Double) -> Unit, 
                 )
             }
             FilledTonalButton(onClick = { onChange(down(target)) }, enabled = target > 0.5) { Text("−") }
-            Text(
-                (if (base > 0) "" else "×") + Quantities.formatNumber(target, null),
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center,
+            // Number rolls up or down with the change.
+            AnimatedContent(
+                targetState = target,
+                transitionSpec = {
+                    val up = targetState > initialState
+                    (slideInVertically { if (up) it else -it } + fadeIn()) togetherWith
+                        (slideOutVertically { if (up) -it else it } + fadeOut())
+                },
+                label = "portions",
                 modifier = Modifier.width(64.dp),
-            )
+            ) { value ->
+                Text(
+                    (if (base > 0) "" else "×") + Quantities.formatNumber(value, null),
+                    style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             FilledTonalButton(onClick = { onChange(up(target)) }, enabled = target < 50) { Text("+") }
         }
     }
@@ -246,18 +267,22 @@ private fun IngredientRow(ing: Ingredient) {
 
 @Composable
 private fun StepRow(n: Int, text: String, done: Boolean, onClick: () -> Unit) {
+    val circle by animateColorAsState(
+        if (done) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary, tween(250), label = "circle",
+    )
+    val onCircle by animateColorAsState(
+        if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary, tween(250), label = "num",
+    )
+    val textColor by animateColorAsState(
+        if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface, tween(250), label = "text",
+    )
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp)) {
-        Surface(
-            shape = CircleShape,
-            color = if (done) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(28.dp),
-        ) {
+        Surface(shape = CircleShape, color = circle, modifier = Modifier.size(28.dp)) {
             Box(contentAlignment = Alignment.Center) {
-                Text(
-                    "$n",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                )
+                // The number turns into a check mark when the step is done.
+                Crossfade(targetState = done, label = "step") { d ->
+                    Text(if (d) "✓" else "$n", style = MaterialTheme.typography.labelLarge, color = onCircle)
+                }
             }
         }
         Spacer(Modifier.width(12.dp))
@@ -265,7 +290,7 @@ private fun StepRow(n: Int, text: String, done: Boolean, onClick: () -> Unit) {
             text,
             style = MaterialTheme.typography.bodyLarge,
             textDecoration = if (done) TextDecoration.LineThrough else null,
-            color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            color = textColor,
             modifier = Modifier.weight(1f),
         )
     }

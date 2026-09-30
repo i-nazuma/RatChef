@@ -1,6 +1,13 @@
 package com.ratchef.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -66,7 +73,9 @@ fun RecipesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
         val state = vm.importState
         if (state is ImportState.NeedsCaption) {
-            item(key = "caption-${state.url}-${state.reason.hashCode()}") { CaptionCard(vm, state) }
+            item(key = "caption-${state.url}-${state.reason.hashCode()}") {
+                Box(Modifier.animateItem()) { CaptionCard(vm, state) }
+            }
         }
 
         if (vm.recipes.isEmpty()) {
@@ -93,7 +102,10 @@ fun RecipesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
-        items(vm.recipes, key = { it.id }) { r -> RecipeCard(r) { vm.openRecipeId = r.id } }
+        items(vm.recipes, key = { it.id }) { r ->
+            // New recipes slide in at the top, deleted ones fade out.
+            Box(Modifier.animateItem()) { RecipeCard(r) { vm.openRecipeId = r.id } }
+        }
     }
 }
 
@@ -123,11 +135,13 @@ private fun ImportCard(vm: AppViewModel) {
                     },
                 ) { Text("Get recipe") }
             }
-            if (loading != null) {
+            AnimatedVisibility(visible = loading != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
-                    Text(loading.message, style = MaterialTheme.typography.bodyMedium)
+                    AnimatedContent(targetState = loading?.message ?: "", label = "loading") { msg ->
+                        Text(msg, style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
         }
