@@ -69,6 +69,20 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         }
 
         Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Shopping list language", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Items from English and German recipes are named in one language, so the same thing merges.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ModeOption("Phone language", s.listLanguage == "auto") { vm.updateSettings(s.copy(listLanguage = "auto")) }
+                ModeOption("Deutsch", s.listLanguage == "de") { vm.updateSettings(s.copy(listLanguage = "de")) }
+                ModeOption("English", s.listLanguage == "en") { vm.updateSettings(s.copy(listLanguage = "en")) }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Instagram", style = MaterialTheme.typography.titleMedium)
                 Text(

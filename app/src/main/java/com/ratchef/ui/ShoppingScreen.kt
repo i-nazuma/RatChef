@@ -41,16 +41,30 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import com.ratchef.core.ShoppingMerger
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontWeight
+import com.ratchef.core.ShoppingFormat
 import com.ratchef.data.ShoppingItem
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShoppingScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     var newItem by rememberSaveable { mutableStateOf("") }
+    val german = vm.settings.listGerman
+    val byRecipe = vm.settings.shoppingGroup == "recipe"
     val open = vm.shopping.filterNot { it.checked }
     val checked = vm.shopping.filter { it.checked }
+    val suggestions = vm.mergeSuggestions
+    val sections = if (byRecipe) groupByRecipe(open, german) else groupByAisle(open, german)
 
     fun addItem() {
         if (newItem.isNotBlank()) {
@@ -107,27 +121,133 @@ fun ShoppingScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     modifier = Modifier.padding(16.dp),
                 )
             }
+            return@Column
+        }
+
+        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = !byRecipe,
+                onClick = { vm.updateSettings(vm.settings.copy(shoppingGroup = "aisle")) },
+                label = { Text("By aisle") },
+            )
+            FilterChip(
+                selected = byRecipe,
+                onClick = { vm.updateSettings(vm.settings.copy(shoppingGroup = "recipe")) },
+                label = { Text("By recipe") },
+            )
         }
 
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-            items(open, key = { it.id }) { ItemRow(it, vm) }
+            if (suggestions.isNotEmpty()) {
+                item(key = "suggestions") { SuggestionsCard(vm, suggestions, german) }
+            }
+            sections.forEach { (title, sectionItems) ->
+                item(key = "h-$title") { SectionHeader(title) }
+                items(sectionItems, key = { it.id }) { ItemRow(it, vm, german, showSources = !byRecipe || title == severalLabel(german)) }
+            }
             if (checked.isNotEmpty()) {
-                item {
-                    Text(
-                        "In the cart",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-                    )
-                }
-                items(checked, key = { it.id }) { ItemRow(it, vm) }
+                item(key = "h-cart") { SectionHeader("In the cart") }
+                items(checked, key = { it.id }) { ItemRow(it, vm, german, showSources = false) }
             }
         }
     }
 }
 
+private fun severalLabel(german: Boolean) = if (german) "Mehrere Rezepte" else "Several recipes"
+
+private fun groupByAisle(items: List<ShoppingItem>, german: Boolean): List<Pair<String, List<ShoppingItem>>> =
+    items.groupBy { ShoppingFormat.aisle(it.ingredient) }
+        .toSortedMap()
+        .map { (aisle, list) ->
+            aisle.label(german) to list.sortedBy { ShoppingFormat.sortName(it.ingredient, german) }
+        }
+
+private fun groupByRecipe(items: List<ShoppingItem>, german: Boolean): List<Pair<String, List<ShoppingItem>>> {
+    val several = severalLabel(german)
+    val mine = if (german) "Selbst hinzugefügt" else "Added by you"
+    val groups = LinkedHashMap<String, MutableList<ShoppingItem>>()
+    for (item in items) {
+        val title = when (item.sources.size) {
+            0 -> mine
+            1 -> item.sources[0]
+            else -> several
+        }
+        groups.getOrPut(title) { mutableListOf() }.add(item)
+    }
+    // Recipes first, then shared items, then things added by hand.
+    val order = groups.keys.sortedBy { if (it == several) 1 else if (it == mine) 2 else 0 }
+    return order.map { it to groups.getValue(it) }
+}
+
 @Composable
-private fun ItemRow(item: ShoppingItem, vm: AppViewModel) {
+private fun SectionHeader(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun SuggestionsCard(vm: AppViewModel, suggestions: List<MergeSuggestion>, german: Boolean) {
+    var expanded by rememberSaveable { mutableStateOf(true) }
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (suggestions.size == 1) "1 thing could be merged" else "${suggestions.size} things could be merged",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f).clickable { expanded = !expanded },
+                )
+                TextButton(onClick = { vm.applyAllMerges() }) { Text("Merge all") }
+            }
+            if (expanded) {
+                suggestions.forEach { s ->
+                    HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        VeggieIcon(Veggie.forIngredient(s.merged.name), size = 20.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                s.items.joinToString(" + ") { ShoppingFormat.line(it.ingredient, german) },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f),
+                            )
+                            Text(
+                                "→ " + ShoppingFormat.line(s.merged, german),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                reasonText(s.reason),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f),
+                            )
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { vm.dismissMerge(s) }) { Text("Keep separate") }
+                        FilledTonalButton(onClick = { vm.applyMerge(s) }) { Text("Merge") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun reasonText(reason: String) = when (reason) {
+    "kinds" -> "Different kinds of the same thing"
+    "fruit" -> "Juice or zest – buy the whole fruit"
+    "similar" -> "Similar names"
+    else -> "Same thing, written differently"
+}
+
+@Composable
+private fun ItemRow(item: ShoppingItem, vm: AppViewModel, german: Boolean, showSources: Boolean) {
     Row(
         Modifier.fillMaxWidth().clickable { vm.toggleItem(item.id) }.padding(start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -141,12 +261,12 @@ private fun ItemRow(item: ShoppingItem, vm: AppViewModel) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                ShoppingMerger.tidy(item.ingredient).display(),
+                ShoppingFormat.line(item.ingredient, german),
                 style = MaterialTheme.typography.bodyLarge,
                 textDecoration = if (item.checked) TextDecoration.LineThrough else null,
                 color = if (item.checked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             )
-            if (item.sources.isNotEmpty()) {
+            if (showSources && item.sources.isNotEmpty()) {
                 Text(
                     item.sources.joinToString(", "),
                     style = MaterialTheme.typography.bodySmall,

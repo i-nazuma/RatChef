@@ -16,7 +16,18 @@ data class Settings(
     val aiMode: AiMode = AiMode.FALLBACK,
     /** Show cups/oz/lb as g/ml and °F as °C. */
     val metric: Boolean = true,
+    /** Shopping list names: "auto" (phone language), "de" or "en". */
+    val listLanguage: String = "auto",
+    /** Shopping list sections: "aisle" or "recipe". */
+    val shoppingGroup: String = "aisle",
 ) {
+    val listGerman: Boolean
+        get() = when (listLanguage) {
+            "de" -> true
+            "en" -> false
+            else -> java.util.Locale.getDefault().language == "de"
+        }
+
     val aiAvailable: Boolean get() = apiKey.isNotBlank() && aiMode != AiMode.OFF
 
     companion object {
@@ -66,6 +77,13 @@ class Store(context: Context) {
         }
     })
 
+    /** Merge suggestions the user chose to keep separate. */
+    fun loadDismissed(): Set<String> = prefs.getStringSet("dismissedMerges", emptySet())?.toSet() ?: emptySet()
+
+    fun saveDismissed(keys: Set<String>) {
+        prefs.edit().putStringSet("dismissedMerges", keys).apply()
+    }
+
     // ------------------------------------------------------------ settings
 
     fun loadSettings() = Settings(
@@ -73,6 +91,8 @@ class Store(context: Context) {
         model = prefs.getString("model", Settings.DEFAULT_MODEL)?.takeIf { it.isNotBlank() } ?: Settings.DEFAULT_MODEL,
         aiMode = runCatching { AiMode.valueOf(prefs.getString("aiMode", null) ?: "") }.getOrDefault(AiMode.FALLBACK),
         metric = prefs.getBoolean("metric", true),
+        listLanguage = prefs.getString("listLanguage", "auto") ?: "auto",
+        shoppingGroup = prefs.getString("shoppingGroup", "aisle") ?: "aisle",
     )
 
     fun saveSettings(s: Settings) {
@@ -81,6 +101,8 @@ class Store(context: Context) {
             .putString("model", s.model.trim())
             .putString("aiMode", s.aiMode.name)
             .putBoolean("metric", s.metric)
+            .putString("listLanguage", s.listLanguage)
+            .putString("shoppingGroup", s.shoppingGroup)
             .apply()
     }
 

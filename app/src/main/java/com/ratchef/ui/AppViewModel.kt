@@ -6,11 +6,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ratchef.core.Canon
 import com.ratchef.core.Ingredient
 import com.ratchef.core.Metric
 import com.ratchef.core.Recipe
 import com.ratchef.core.RecipeParser
+import com.ratchef.core.ShoppingFormat
 import com.ratchef.core.ShoppingMerger
+import com.ratchef.core.ShoppingSuggestions
 import com.ratchef.data.AiMode
 import com.ratchef.data.Settings
 import com.ratchef.data.ShoppingItem
@@ -24,6 +27,12 @@ import kotlinx.coroutines.withContext
 import java.util.UUID
 
 enum class Tab { RECIPES, SHOPPING, SETTINGS }
+
+/** A proposed merge of several shopping-list items into one. */
+data class MergeSuggestion(val items: List<ShoppingItem>, val merged: Ingredient, val reason: String) {
+    /** Stable while the same items are on the list; used to remember "keep separate". */
+    val key: String get() = items.map { it.id }.sorted().joinToString(",")
+}
 
 sealed interface ImportState {
     data object Idle : ImportState
@@ -228,13 +237,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         store.saveShopping(shopping)
     }
 
-    private fun addOne(list: List<ShoppingItem>, ing: Ingredient, source: String?): List<ShoppingItem> {
+    private fun addOne(list: List<ShoppingItem>, raw: Ingredient, source: String?): List<ShoppingItem> {
+        val ing = Canon.normalize(raw)
         val key = ShoppingMerger.key(ing)
-        val name = ShoppingMerger.normalizeName(ing.name)
+        val base = ShoppingMerger.baseKey(ing)
         fun ShoppingItem.withSource() =
             if (source == null || source in sources) this else copy(sources = sources + source)
 
-        // Same thing, same kind of unit, still unchecked -> add up.
+        // Same thing (in any language), same kind of amount, still unchecked -> add up.
         val idx = list.indexOfFirst { !it.checked && ShoppingMerger.key(it.ingredient) == key }
         if (idx >= 0) {
             val merged = list[idx].copy(ingredient = ShoppingMerger.combine(list[idx].ingredient, ing)).withSource()
@@ -242,12 +252,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         // "salt (to taste)" when "1 tsp salt" is already there -> nothing to add.
         if (!ing.hasQty()) {
-            val same = list.indexOfFirst { !it.checked && ShoppingMerger.normalizeName(it.ingredient.name) == name }
+            val same = list.indexOfFirst { !it.checked && ShoppingMerger.baseKey(it.ingredient) == base }
             if (same >= 0) return list.toMutableList().also { it[same] = it[same].withSource() }
         } else {
             // Replace a quantity-less placeholder with the real amount.
             val placeholder = list.indexOfFirst {
-                !it.checked && !it.ingredient.hasQty() && ShoppingMerger.normalizeName(it.ingredient.name) == name
+                !it.checked && !it.ingredient.hasQty() && ShoppingMerger.baseKey(it.ingredient) == base
             }
             if (placeholder >= 0) {
                 val merged = list[placeholder].copy(ingredient = ing).withSource()
@@ -255,6 +265,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         return list + ShoppingItem(UUID.randomUUID().toString(), ing, false, listOfNotNull(source))
+    }
+
+    // ------------------------------------------------------------------ merge suggestions
+
+    var dismissedMerges by mutableStateOf(store.loadDismissed())
+        private set
+
+    /** Items that are probably the same thing to buy; nothing changes until the user accepts. */
+    val mergeSuggestions: List<MergeSuggestion>
+        get() {
+            val open = shopping.filterNot { it.checked }
+            return ShoppingSuggestions.compute(open.map { it.ingredient }, settings.listGerman)
+                .map { s -> MergeSuggestion(s.items.map { open[it] }, s.merged, s.reason) }
+                .filterNot { it.key in dismissedMerges }
+        }
+
+    fun applyMerge(s: MergeSuggestion) {
+        val ids = s.items.map { it.id }.toSet()
+        val first = shopping.indexOfFirst { it.id in ids }
+        if (first < 0) return
+        val merged = ShoppingItem(
+            id = UUID.randomUUID().toString(),
+            ingredient = s.merged,
+            checked = false,
+            sources = s.items.flatMap { it.sources }.distinct(),
+        )
+        val list = shopping.toMutableList()
+        list[first] = merged
+        shopping = list.filterIndexed { i, it -> i == first || it.id !in ids }
+        store.saveShopping(shopping)
+    }
+
+    fun applyAllMerges() {
+        mergeSuggestions.forEach { applyMerge(it) }
+        message = "Shopping list tidied up"
+    }
+
+    fun dismissMerge(s: MergeSuggestion) {
+        dismissedMerges = dismissedMerges + s.key
+        store.saveDismissed(dismissedMerges)
     }
 
     fun toggleItem(id: String) {
@@ -277,8 +327,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         store.saveShopping(shopping)
     }
 
-    fun shoppingAsText(): String =
-        shopping.filterNot { it.checked }.joinToString("\n") { "☐ " + ShoppingMerger.tidy(it.ingredient).display() }
+    fun shoppingAsText(): String {
+        val german = settings.listGerman
+        return shopping.filterNot { it.checked }
+            .groupBy { ShoppingFormat.aisle(it.ingredient) }
+            .toSortedMap()
+            .entries.joinToString("\n\n") { (aisle, items) ->
+                aisle.label(german) + "\n" + items.joinToString("\n") { "☐ " + ShoppingFormat.line(it.ingredient, german) }
+            }
+    }
 
     // ------------------------------------------------------------------ settings
 

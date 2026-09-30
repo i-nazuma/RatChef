@@ -116,6 +116,10 @@ public final class Quantities {
     private static final String[] FRAC_GLYPHS = {"", "⅛", "¼", "⅓", "½", "⅔", "¾", "⅞", ""};
 
     public static String formatAmount(double qty, double qtyMax, String unitKey) {
+        return formatAmount(qty, qtyMax, unitKey, false);
+    }
+
+    public static String formatAmount(double qty, double qtyMax, String unitKey, boolean german) {
         if (Double.isNaN(qty)) return "";
         Units.Unit u = Units.byKey(unitKey);
         String n = formatNumber(qty, u);
@@ -123,7 +127,7 @@ public final class Quantities {
         if (u == null) return n;
         // no space for metric units like "200 g" reads fine either way; keep the space for clarity
         double top = Double.isNaN(qtyMax) ? qty : qtyMax;
-        return n + " " + Units.label(u, top);
+        return n + " " + Units.label(u, top, german);
     }
 
     public static String formatNumber(double v, Units.Unit u) {

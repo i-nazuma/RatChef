@@ -84,6 +84,73 @@ public class RecipeParserTest {
         assertEquals("Cook for 10 minutes.", Metric.convertText("Cook for 10 minutes."));
     }
 
+    private static String key(String name, String unit) {
+        Canon.Match m = Canon.match(name, unit);
+        return m == null ? "-" : m.key();
+    }
+
+    @Test
+    public void dictionaryMatchesAcrossLanguages() {
+        assertEquals("onion|yellow|", key("Yellow onion", ""));
+        assertEquals("onion|red|", key("Rote Zwiebel", ""));
+        assertEquals("onion||", key("Zwiebeln", ""));
+        assertEquals("garlic||", key("Knoblauchzehen", ""));
+        assertEquals("cream_cheese||", key("Frischkäse", ""));
+        assertEquals("chickpeas||", key("Kichererbsen", ""));
+        assertEquals("eggs||", key("Eier", ""));
+        assertEquals("rice||", key("Basmati Reis", ""));
+        assertEquals("wine|white|", key("Weißwein", ""));
+        assertEquals("lemon||juice", key("Squeezes of lemon juice", "dash"));
+        assertEquals("lemon||juice", key("Zitronensaft", ""));
+        assertEquals("chicken_stock||", key("Chicken stock", ""));
+        assertEquals("pineapple||", key("Pineapple", ""));
+        assertEquals("paprika_powder||", key("Paprika", "tsp"));
+        assertEquals("bell_pepper||", key("Paprika", ""));
+        assertEquals("salt_pepper||", key("Salz und Pfeffer", ""));
+        assertEquals("feta||", key("Feta cheese", ""));
+        assertEquals("pumpkin||", key("Butternut squash", ""));
+        assertEquals("-", key("Gochujang", ""));
+        assertEquals("POTATO", Canon.veggieInText("Kartoffelsalat"));
+        assertEquals("TOMATO", Canon.veggieInText("Tomato basil pasta"));
+    }
+
+    @Test
+    public void shoppingLanguageAndAutoMerge() {
+        Ingredient en = RecipeParser.parseIngredient("1 onion");
+        Ingredient de = RecipeParser.parseIngredient("2 Zwiebeln");
+        assertEquals(ShoppingMerger.key(en), ShoppingMerger.key(de));
+        assertEquals("3 Zwiebeln", ShoppingFormat.line(ShoppingMerger.combine(en, de), true));
+        assertEquals("3 Onions", ShoppingFormat.line(ShoppingMerger.combine(en, de), false));
+        assertEquals("2 EL Olivenöl", ShoppingFormat.line(RecipeParser.parseIngredient("2 tbsp olive oil"), true));
+        assertEquals("2 Zehen Knoblauch",
+                ShoppingFormat.line(Canon.normalize(RecipeParser.parseIngredient("2 Knoblauchzehen")), true));
+        assertEquals(Canon.Aisle.DAIRY, ShoppingFormat.aisle(RecipeParser.parseIngredient("200 ml Schlagobers")));
+    }
+
+    @Test
+    public void mergeSuggestions() {
+        List<Ingredient> l = new ArrayList<>();
+        l.add(RecipeParser.parseIngredient("½ yellow onion"));
+        l.add(RecipeParser.parseIngredient("eine rote Zwiebel"));
+        l.add(RecipeParser.parseIngredient("2 squeezes of lemon juice"));
+        l.add(RecipeParser.parseIngredient("1 lemon"));
+        l.add(RecipeParser.parseIngredient("2 tbsp gochujang paste"));
+        l.add(RecipeParser.parseIngredient("1 tbsp gochujang"));
+        l.add(RecipeParser.parseIngredient("200 g spaghetti"));
+        List<ShoppingSuggestions.Suggestion> s = ShoppingSuggestions.compute(l, true);
+        assertEquals(3, s.size());
+        assertEquals("2 Zwiebeln (1 ½ benötigt; gelb, rot)", ShoppingFormat.line(s.get(0).merged, true));
+        assertEquals("kinds", s.get(0).reason);
+        assertEquals("2 Zitronen (1 ½ benötigt)", ShoppingFormat.line(s.get(1).merged, true));
+        assertEquals("3 tbsp Gochujang", ShoppingFormat.line(s.get(2).merged, false));
+
+        List<Ingredient> lone = new ArrayList<>();
+        lone.add(RecipeParser.parseIngredient("2 tbsp lemon juice"));
+        List<ShoppingSuggestions.Suggestion> s2 = ShoppingSuggestions.compute(lone, false);
+        assertEquals(1, s2.size());
+        assertEquals("1 Lemon (⅔ needed; for the juice)", ShoppingFormat.line(s2.get(0).merged, false));
+    }
+
     @Test
     public void shoppingMerge() {
         List<Ingredient> l = new ArrayList<>();

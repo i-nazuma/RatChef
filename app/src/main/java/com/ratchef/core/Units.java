@@ -72,7 +72,7 @@ public final class Units {
         add("slice", "slice", Family.COUNT, 1, true, "slices", "scheibe", "scheiben");
         add("piece", "pc", Family.COUNT, 1, true, "pc", "pcs", "piece", "pieces", "stk", "stück", "stueck");
         add("sprig", "sprig", Family.COUNT, 1, true, "sprigs", "zweig", "zweige");
-        add("dash", "dash", Family.COUNT, 1, true, "dashes", "schuss", "spritzer", "splash");
+        add("dash", "dash", Family.COUNT, 1, true, "dashes", "schuss", "spritzer", "splash", "squeeze", "squeezes");
         add("stick", "stick", Family.COUNT, 1, true, "sticks", "stange", "stangen");
         add("cube", "cube", Family.COUNT, 1, true, "cubes", "würfel");
         add("scoop", "scoop", Family.COUNT, 1, true, "scoops", "messlöffel", "messbecher");
@@ -92,6 +92,28 @@ public final class Units {
     /** Label for a given amount: "1 cup", "2 cups". */
     public static String label(Unit u, double qty) {
         return qty > 1.0001 ? u.plural : u.display;
+    }
+
+    /** German labels (singular, plural) where they differ from the English short form. */
+    private static final Map<String, String[]> DE = new HashMap<>();
+    static {
+        String[][] d = {
+                {"tsp", "TL", "TL"}, {"tbsp", "EL", "EL"}, {"cup", "Tasse", "Tassen"},
+                {"pinch", "Prise", "Prisen"}, {"clove", "Zehe", "Zehen"}, {"can", "Dose", "Dosen"},
+                {"pack", "Packung", "Packungen"}, {"bunch", "Bund", "Bund"}, {"handful", "Handvoll", "Handvoll"},
+                {"slice", "Scheibe", "Scheiben"}, {"piece", "Stk.", "Stk."}, {"sprig", "Zweig", "Zweige"},
+                {"dash", "Spritzer", "Spritzer"}, {"stick", "Stange", "Stangen"}, {"cube", "Würfel", "Würfel"},
+                {"jar", "Glas", "Gläser"}, {"scoop", "Messlöffel", "Messlöffel"},
+        };
+        for (String[] r : d) DE.put(r[0], new String[]{r[1], r[2]});
+    }
+
+    public static String label(Unit u, double qty, boolean german) {
+        if (german && DE.containsKey(u.key)) {
+            String[] l = DE.get(u.key);
+            return qty > 1.0001 ? l[1] : l[0];
+        }
+        return label(u, qty);
     }
 
     public static Unit byKey(String key) {

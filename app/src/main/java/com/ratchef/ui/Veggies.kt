@@ -17,43 +17,37 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ratchef.R
+import com.ratchef.core.Canon
 import com.ratchef.core.Recipe
-import java.util.Locale
 
 /** Small flat vegetable icons used as accents: recipe cards, ingredient rows, shopping items. */
-enum class Veggie(@DrawableRes val res: Int, private val words: List<String>) {
-    // Order matters: garlic before onion ("Knoblauchzehen"), specific before generic.
-    GARLIC(R.drawable.ic_veg_garlic, listOf("garlic", "knoblauch")),
-    ONION(R.drawable.ic_veg_onion, listOf("onion", "zwiebel", "shallot", "schalotte", "leek", "lauch", "porree")),
-    TOMATO(R.drawable.ic_veg_tomato, listOf("tomat", "paradeiser", "passata", "pomodor")),
-    EGGPLANT(R.drawable.ic_veg_eggplant, listOf("eggplant", "aubergine", "melanzan")),
-    ZUCCHINI(R.drawable.ic_veg_zucchini, listOf("zucchin", "courgette", "cucumber", "gurke")),
-    PEPPER(
-        R.drawable.ic_veg_pepper,
-        listOf("bell pepper", "red pepper", "green pepper", "yellow pepper", "paprika", "chili", "chilli",
-            "jalape", "capsicum", "pfefferoni"),
-    ),
-    CARROT(R.drawable.ic_veg_carrot, listOf("carrot", "karotte", "möhre", "moehre", "rüebli")),
-    HERB(
-        R.drawable.ic_veg_herb,
-        listOf("basil", "parsley", "petersil", "coriander", "cilantro", "koriander", "dill", "thyme", "thymian",
-            "rosemary", "rosmarin", "mint", "minze", "oregano", "spinach", "spinat", "lettuce", "kale",
-            "chive", "schnittlauch", "herb", "kräuter", "rucola", "arugula", "sage", "salbei", "salad", "blattsalat"),
-    );
-
-    fun matches(name: String): Boolean {
-        val n = name.lowercase(Locale.ROOT)
-        // "paprika powder" / "Paprikapulver" is a spice, not a vegetable
-        if (this == PEPPER && (n.contains("pulver") || n.contains("powder") || n.contains("smoked"))) return false
-        return words.any { n.contains(it) }
-    }
+enum class Veggie(@DrawableRes val res: Int) {
+    TOMATO(R.drawable.ic_veg_tomato),
+    POTATO(R.drawable.ic_veg_potato),
+    ONION(R.drawable.ic_veg_onion),
+    GARLIC(R.drawable.ic_veg_garlic),
+    CARROT(R.drawable.ic_veg_carrot),
+    PEPPER(R.drawable.ic_veg_pepper),
+    ZUCCHINI(R.drawable.ic_veg_zucchini),
+    EGGPLANT(R.drawable.ic_veg_eggplant),
+    MUSHROOM(R.drawable.ic_veg_mushroom),
+    LEMON(R.drawable.ic_veg_lemon),
+    HERB(R.drawable.ic_veg_herb);
 
     companion object {
-        fun forIngredient(name: String): Veggie? = entries.firstOrNull { it.matches(name) }
+        private fun named(name: String?): Veggie? =
+            name?.takeIf { it.isNotEmpty() }?.let { n -> entries.firstOrNull { it.name == n } }
 
-        /** The recipe's most prominent vegetable, or a stable pick from its id. */
+        /** Uses the ingredient dictionary (EN + DE), so "Erdäpfel" and "potatoes" both get the potato. */
+        fun forIngredient(name: String): Veggie? = named(Canon.match(name, "")?.entry?.veggie)
+
+        /**
+         * The recipe's vegetable: first one named in the title ("Kartoffelsalat" -> potato), else the
+         * first vegetable among the ingredients, else a stable pick from its id.
+         */
         fun forRecipe(r: Recipe): Veggie =
-            r.ingredients.firstNotNullOfOrNull { forIngredient(it.name) }
+            named(Canon.veggieInText(r.title))
+                ?: r.ingredients.firstNotNullOfOrNull { forIngredient(it.name) }
                 ?: entries[Math.floorMod(r.id.hashCode(), entries.size)]
     }
 }
@@ -85,8 +79,8 @@ fun VeggieBadge(veggie: Veggie, size: Dp = 44.dp) {
 
 /** Decorative row of all vegetables, for empty states. */
 @Composable
-fun VeggieRow(size: Dp = 22.dp) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+fun VeggieRow(size: Dp = 20.dp) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Veggie.entries.forEach { Image(painterResource(it.res), contentDescription = null, Modifier.size(size)) }
     }
 }

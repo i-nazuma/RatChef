@@ -23,18 +23,27 @@ public final class ShoppingMerger {
     private ShoppingMerger() {}
 
     public static boolean shouldSkip(Ingredient i) {
-        return SKIP.contains(i.name.toLowerCase(Locale.ROOT).trim());
+        String n = i.name.toLowerCase(Locale.ROOT).trim();
+        return SKIP.contains(n) || n.startsWith("water ") || n.startsWith("wasser ");
     }
 
     /** Items with the same key can be added together. */
     public static String key(Ingredient i) {
-        String fam;
+        return baseKey(i) + "|" + (i.hasQty() ? famKey(i) : "?");
+    }
+
+    /** What the item is, independent of amount and language: "c:onion|red|" or a normalised name. */
+    public static String baseKey(Ingredient i) {
+        Canon.Match m = Canon.match(i.name, i.unit);
+        return m != null ? "c:" + m.key() : normalizeName(i.name);
+    }
+
+    /** Which amounts can be added: "count", a count-like unit ("clove"), "MASS" or "VOLUME". */
+    public static String famKey(Ingredient i) {
         Units.Unit u = Units.byKey(i.unit);
-        if (!i.hasQty()) fam = "?";
-        else if (u == null) fam = "count";
-        else if (u.family == Units.Family.COUNT) fam = u.key;
-        else fam = u.family.name();
-        return normalizeName(i.name) + "|" + fam;
+        if (u == null) return "count";
+        if (u.family == Units.Family.COUNT) return u.key;
+        return u.family.name();
     }
 
     public static String normalizeName(String name) {
@@ -89,10 +98,10 @@ public final class ShoppingMerger {
             byKey.put(k, prev == null ? i : combine(prev, i));
         }
         Set<String> namesWithQty = new HashSet<>();
-        for (Ingredient i : byKey.values()) if (i.hasQty()) namesWithQty.add(normalizeName(i.name));
+        for (Ingredient i : byKey.values()) if (i.hasQty()) namesWithQty.add(baseKey(i));
         List<Ingredient> out = new ArrayList<>();
         for (Ingredient i : byKey.values()) {
-            if (!i.hasQty() && namesWithQty.contains(normalizeName(i.name))) continue;
+            if (!i.hasQty() && namesWithQty.contains(baseKey(i))) continue;
             out.add(tidy(i));
         }
         return out;
