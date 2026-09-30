@@ -71,6 +71,20 @@ public class RecipeParserTest {
     }
 
     @Test
+    public void metricConversion() {
+        assertEquals("250 g Flour", Metric.convert(RecipeParser.parseIngredient("2 cups flour")).display());
+        assertEquals("360 ml Heavy cream", Metric.convert(RecipeParser.parseIngredient("1 1/2 cups heavy cream")).display());
+        assertEquals("75 g Grated parmesan", Metric.convert(RecipeParser.parseIngredient("3/4 cup grated parmesan")).display());
+        assertEquals("455 g Ground beef", Metric.convert(RecipeParser.parseIngredient("1 lb ground beef")).display());
+        assertEquals("225 g Cream cheese", Metric.convert(RecipeParser.parseIngredient("8 oz cream cheese")).display());
+        assertEquals("115 g Butter", Metric.convert(RecipeParser.parseIngredient("1 stick butter")).display());
+        assertEquals("2 tbsp Olive oil", Metric.convert(RecipeParser.parseIngredient("2 tbsp olive oil")).display());
+        assertEquals("Bake at 175 °C for 25 min.", Metric.convertText("Bake at 350°F for 25 min."));
+        assertEquals("Grease a 23×33 cm pan.", Metric.convertText("Grease a 9x13 inch pan."));
+        assertEquals("Cook for 10 minutes.", Metric.convertText("Cook for 10 minutes."));
+    }
+
+    @Test
     public void shoppingMerge() {
         List<Ingredient> l = new ArrayList<>();
         l.add(RecipeParser.parseIngredient("1 cup heavy cream"));

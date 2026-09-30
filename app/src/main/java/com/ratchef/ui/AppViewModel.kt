@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ratchef.core.Ingredient
+import com.ratchef.core.Metric
 import com.ratchef.core.Recipe
 import com.ratchef.core.RecipeParser
 import com.ratchef.core.ShoppingMerger
@@ -164,7 +165,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         var list = shopping
         var added = 0
         for (raw in recipe.ingredients) {
-            val ing = raw.scaled(factor)
+            val ing = raw.scaled(factor).let { if (settings.metric) Metric.convert(it) else it }
             if (ShoppingMerger.shouldSkip(ing)) continue
             list = addOne(list, ing, recipe.title)
             added++

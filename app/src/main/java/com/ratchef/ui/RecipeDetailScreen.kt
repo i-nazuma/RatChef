@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ratchef.core.Ingredient
+import com.ratchef.core.Metric
 import com.ratchef.core.Quantities
 import com.ratchef.core.Recipe
 import com.ratchef.core.ShoppingMerger
@@ -78,6 +79,7 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
     var showCaption by remember { mutableStateOf(false) }
     val done = remember(recipe.id) { mutableStateListOf<Int>() }
     val uri = LocalUriHandler.current
+    val metric = vm.settings.metric
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -120,12 +122,15 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
 
             item { SectionTitle("Ingredients") }
             if (recipe.ingredients.isEmpty()) item { Hint("No ingredients found – tap ✎ to edit the caption.") }
-            items(recipe.ingredients) { ing -> IngredientRow(ShoppingMerger.tidy(ing.scaled(factor))) }
+            items(recipe.ingredients) { ing ->
+                val scaled = ing.scaled(factor)
+                IngredientRow(ShoppingMerger.tidy(if (metric) Metric.convert(scaled) else scaled))
+            }
 
             item { SectionTitle("Steps") }
             if (recipe.steps.isEmpty()) item { Hint("No steps in the caption.") }
             itemsIndexed(recipe.steps) { i, step ->
-                StepRow(i + 1, step, i in done) { if (i in done) done.removeAll { it == i } else done.add(i) }
+                StepRow(i + 1, if (metric) Metric.convertText(step) else step, i in done) { if (i in done) done.removeAll { it == i } else done.add(i) }
             }
 
             item {

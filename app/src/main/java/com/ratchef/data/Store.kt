@@ -14,6 +14,8 @@ data class Settings(
     val apiKey: String = "",
     val model: String = DEFAULT_MODEL,
     val aiMode: AiMode = AiMode.FALLBACK,
+    /** Show cups/oz/lb as g/ml and °F as °C. */
+    val metric: Boolean = true,
 ) {
     val aiAvailable: Boolean get() = apiKey.isNotBlank() && aiMode != AiMode.OFF
 
@@ -70,6 +72,7 @@ class Store(context: Context) {
         apiKey = prefs.getString("apiKey", "") ?: "",
         model = prefs.getString("model", Settings.DEFAULT_MODEL)?.takeIf { it.isNotBlank() } ?: Settings.DEFAULT_MODEL,
         aiMode = runCatching { AiMode.valueOf(prefs.getString("aiMode", null) ?: "") }.getOrDefault(AiMode.FALLBACK),
+        metric = prefs.getBoolean("metric", true),
     )
 
     fun saveSettings(s: Settings) {
@@ -77,6 +80,7 @@ class Store(context: Context) {
             .putString("apiKey", s.apiKey.trim())
             .putString("model", s.model.trim())
             .putString("aiMode", s.aiMode.name)
+            .putBoolean("metric", s.metric)
             .apply()
     }
 
