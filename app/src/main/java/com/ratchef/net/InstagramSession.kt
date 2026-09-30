@@ -26,6 +26,20 @@ object InstagramSession {
 
     fun csrfToken(): String? = cookie("csrftoken")
 
+    /**
+     * Alternative sign-in: the value of the "sessionid" cookie copied from a desktop browser where
+     * you are logged in to instagram.com. Returns false if the value can't be a session id.
+     */
+    fun setSessionId(raw: String): Boolean {
+        val value = raw.trim().removePrefix("sessionid=").trim().trim('"').substringBefore(';')
+        if (value.length < 20 || value.any { it.isWhitespace() }) return false
+        val cm = CookieManager.getInstance()
+        cm.setAcceptCookie(true)
+        cm.setCookie(BASE, "sessionid=$value; Domain=.instagram.com; Path=/; Secure; HttpOnly")
+        cm.flush()
+        return true
+    }
+
     fun signOut(done: () -> Unit = {}) {
         val cm = CookieManager.getInstance()
         cm.removeAllCookies {

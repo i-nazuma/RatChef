@@ -27,6 +27,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,10 +46,29 @@ private const val LOGIN_URL = "${InstagramSession.BASE}/accounts/login/"
  * The WebView default contains "; wv" and "Version/4.0", which Instagram treats as an embedded
  * browser and may answer with an empty page.
  */
-private fun chromeUserAgent(default: String): String {
+private fun chromeUserAgent(default: String, desktop: Boolean): String {
     val chrome = Regex("""Chrome/[\d.]+""").find(default)?.value ?: "Chrome/128.0.0.0"
-    return "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; ${Build.MODEL}) " +
-        "AppleWebKit/537.36 (KHTML, like Gecko) $chrome Mobile Safari/537.36"
+    return if (desktop) {
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) $chrome Safari/537.36"
+    } else {
+        "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; ${Build.MODEL}) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) $chrome Mobile Safari/537.36"
+    }
+}
+
+/** Reports what the page actually shows, so a blank screen can be diagnosed. */
+private const val PROBE_JS = """(function(){
+  var b = document.body; var t = b ? b.innerText.replace(/\s+/g,' ').trim() : '';
+  var d = document.querySelectorAll('[role=dialog]').length;
+  return (document.title || 'no title') + ' | text ' + t.length + ' | dialogs ' + d + ' | ' +
+    window.innerWidth + 'x' + window.innerHeight + ' | ' + t.slice(0, 60);
+})()"""
+
+private fun WebView.applyMode(desktop: Boolean, defaultUa: String) {
+    settings.userAgentString = chromeUserAgent(defaultUa, desktop)
+    // Desktop pages need the wide viewport to fit the phone screen.
+    settings.useWideViewPort = desktop
+    settings.loadWithOverviewMode = desktop
 }
 
 /**
@@ -64,6 +84,9 @@ fun InstagramLoginScreen(onSignedIn: () -> Unit, onCancel: () -> Unit) {
     var page by remember { mutableStateOf("") }
     var problem by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<WebView?>(null) }
+    var desktop by remember { mutableStateOf(false) }
+    var probe by remember { mutableStateOf("") }
+    var defaultUa by remember { mutableStateOf("") }
     BackHandler {
         val wv = webView
         if (wv != null && wv.canGoBack()) wv.goBack() else onCancel()
@@ -83,6 +106,15 @@ fun InstagramLoginScreen(onSignedIn: () -> Unit, onCancel: () -> Unit) {
                 title = { Text("Sign in to Instagram") },
                 navigationIcon = { IconButton(onClick = onCancel) { Icon(Icons.Filled.Close, "Cancel") } },
                 actions = {
+                    TextButton(onClick = {
+                        desktop = !desktop
+                        problem = null
+                        probe = ""
+                        webView?.let {
+                            it.applyMode(desktop, defaultUa)
+                            it.loadUrl(LOGIN_URL)
+                        }
+                    }) { Text(if (desktop) "Mobile site" else "Desktop site") }
                     IconButton(onClick = {
                         problem = null
                         webView?.loadUrl(LOGIN_URL)
@@ -100,10 +132,10 @@ fun InstagramLoginScreen(onSignedIn: () -> Unit, onCancel: () -> Unit) {
             )
             // Tiny status line: which page is open and what went wrong, so problems can be reported.
             Text(
-                (problem?.let { "⚠ $it · " } ?: "") + page,
+                (problem?.let { "⚠ $it · " } ?: "") + page + (if (probe.isNotEmpty()) "\n$probe" else ""),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                maxLines = 3,
+                maxLines = 4,
                 modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 4.dp),
             )
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -117,9 +149,9 @@ fun InstagramLoginScreen(onSignedIn: () -> Unit, onCancel: () -> Unit) {
                         @Suppress("DEPRECATION")
                         settings.databaseEnabled = true
                         settings.javaScriptCanOpenWindowsAutomatically = true
-                        settings.loadWithOverviewMode = true
-                        settings.useWideViewPort = true
-                        settings.userAgentString = chromeUserAgent(settings.userAgentString)
+                        defaultUa = settings.userAgentString
+                        applyMode(desktop, defaultUa)
+                        setBackgroundColor(android.graphics.Color.WHITE)
 
                         val cm = CookieManager.getInstance()
                         cm.setAcceptCookie(true)
@@ -151,6 +183,14 @@ fun InstagramLoginScreen(onSignedIn: () -> Unit, onCancel: () -> Unit) {
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 loading = false
                                 checkDone()
+                                // Instagram renders with JavaScript after "finished"; look a bit later.
+                                view?.postDelayed({
+                                    view.evaluateJavascript(PROBE_JS) { raw ->
+                                        probe = runCatching { org.json.JSONArray("[$raw]").getString(0) }
+                                            .getOrDefault(raw ?: "")
+                                    }
+                                    checkDone()
+                                }, 3000)
                             }
 
                             override fun onReceivedError(

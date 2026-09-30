@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.OutlinedButton
@@ -37,6 +38,12 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val s = vm.settings
     val uri = LocalUriHandler.current
     var showKey by remember { mutableStateOf(false) }
+    var showPaste by remember { mutableStateOf(false) }
+
+    if (showPaste) SessionPasteDialog(
+        onDismiss = { showPaste = false },
+        onSave = { if (vm.pasteInstagramSession(it)) showPaste = false },
+    )
 
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -80,6 +87,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     OutlinedButton(onClick = { vm.signOutInstagram() }) { Text("Sign out") }
                 } else {
                     Button(onClick = { vm.showInstagramLogin = true }) { Text("Sign in to Instagram") }
+                    TextButton(onClick = { showPaste = true }) { Text("Login page won't load? Paste a session cookie") }
                 }
             }
         }
@@ -155,4 +163,38 @@ private fun ModeOption(label: String, selected: Boolean, onClick: () -> Unit) {
         RadioButton(selected = selected, onClick = onClick)
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+@Composable
+private fun SessionPasteDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var value by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Paste Instagram session") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "On a computer, log in at instagram.com, press F12 → Application (Chrome) or Storage (Firefox) → " +
+                        "Cookies → https://www.instagram.com, and copy the value of \"sessionid\".",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    "This value is your login: treat it like a password and don't share it. " +
+                        "Signing out here or on instagram.com ends it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it },
+                    label = { Text("sessionid") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = { TextButton(enabled = value.isNotBlank(), onClick = { onSave(value) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

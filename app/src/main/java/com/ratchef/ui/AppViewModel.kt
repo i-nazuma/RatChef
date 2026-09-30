@@ -174,6 +174,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Sign in by pasting the sessionid cookie from a desktop browser. */
+    fun pasteInstagramSession(value: String): Boolean {
+        if (!InstagramSession.setSessionId(value)) {
+            message = "That doesn't look like a sessionid value"
+            return false
+        }
+        // setCookie is applied asynchronously; the login screen callback path handles the rest.
+        onInstagramSignedIn()
+        instagramSignedIn = true
+        return true
+    }
+
     fun signOutInstagram() {
         InstagramSession.signOut {
             instagramSignedIn = false
