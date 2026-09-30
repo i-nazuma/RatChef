@@ -17,6 +17,7 @@ import com.ratchef.data.ShoppingItem
 import com.ratchef.data.Store
 import com.ratchef.net.CaptionFetcher
 import com.ratchef.net.GeminiClient
+import com.ratchef.net.InstagramSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,6 +47,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var openRecipeId by mutableStateOf<String?>(null)
     var tab by mutableStateOf(Tab.RECIPES)
 
+    /** Signed in to Instagram inside RatChef (your own account, via its login page). */
+    var instagramSignedIn by mutableStateOf(InstagramSession.isSignedIn())
+        private set
+    var showInstagramLogin by mutableStateOf(false)
+
     /** One-shot message for the snackbar. */
     var message by mutableStateOf<String?>(null)
 
@@ -69,12 +75,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         importState = ImportState.Loading("Fetching caption…")
         viewModelScope.launch {
-            val caption = withContext(Dispatchers.IO) { runCatching { CaptionFetcher.fetch(url) }.getOrNull() }
+            val cookies = InstagramSession.cookieHeader()
+            val csrf = InstagramSession.csrfToken()
+            val caption = withContext(Dispatchers.IO) {
+                runCatching { CaptionFetcher.fetch(url, cookies, csrf) }.getOrNull()
+            }
             if (caption.isNullOrBlank()) {
                 importState = ImportState.NeedsCaption(
                     url,
-                    "Couldn't read the caption automatically (Instagram may require login for this post). " +
-                        "Open the reel, copy the caption and paste it here.",
+                    if (cookies == null) {
+                        "Instagram wants a login to show this reel. Sign in to Instagram here, or open the reel, " +
+                            "copy the caption and paste it below."
+                    } else {
+                        "Couldn't read the caption, even signed in. Open the reel, copy the caption and paste it below."
+                    },
                 )
             } else {
                 parseAndSave(url, caption, existingId = null)
@@ -143,6 +157,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         openRecipeId = recipe.id
         if (!recipe.looksComplete() && message == null) {
             message = "Parsed partially – check the recipe or edit the caption."
+        }
+    }
+
+    // ------------------------------------------------------------------ instagram
+
+    fun onInstagramSignedIn() {
+        showInstagramLogin = false
+        instagramSignedIn = InstagramSession.isSignedIn()
+        message = "Signed in to Instagram"
+        // Retry the reel that needed a login.
+        val pending = importState as? ImportState.NeedsCaption
+        if (pending != null && pending.url.isNotEmpty() && pending.caption.isEmpty()) {
+            importState = ImportState.Idle
+            importText(pending.url)
+        }
+    }
+
+    fun signOutInstagram() {
+        InstagramSession.signOut {
+            instagramSignedIn = false
+            message = "Signed out of Instagram"
         }
     }
 

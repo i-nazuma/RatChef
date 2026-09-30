@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -61,6 +63,29 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Instagram", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (vm.instagramSignedIn) "Signed in. Reels load with your account."
+                    else "Not signed in. Many reels need a login before their caption can be read.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    "You sign in on Instagram's own page; RatChef keeps only the login on this phone. " +
+                        "Instagram doesn't like apps reading posts for you: at a few recipes a day the risk is " +
+                        "small, but it could flag your account, and it can break this at any time.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (vm.instagramSignedIn) {
+                    OutlinedButton(onClick = { vm.signOutInstagram() }) { Text("Sign out") }
+                } else {
+                    Button(onClick = { vm.showInstagramLogin = true }) { Text("Sign in to Instagram") }
+                }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("AI fallback (optional)", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Recipes are converted offline on your phone. For messy captions the app can ask Google " +
@@ -107,8 +132,8 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 Text("How importing works", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "In Instagram tap Share on a reel → RatChef (or copy the link and paste it here). " +
-                        "The app reads the public caption. If Instagram blocks that for a post, open the reel, " +
-                        "copy the caption text and paste it instead – that always works.",
+                        "The app reads the caption (signed in, if you are). If Instagram blocks that for a post, open the " +
+                        "reel, copy the caption text and paste it instead – that always works.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(

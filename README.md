@@ -12,11 +12,16 @@ scaler, and a shopping list that merges amounts across recipes. No server needed
    comma lists, trailing amounts like "Mehl: 200 g", and ranges. It also filters out hashtags, macros and "follow for more" lines.
 4. Only if the parser isn't sure (or you choose "Always"), the caption text goes to **Gemini** (free tier)
    for conversion. This is optional; without an API key everything stays offline.
-5. Tap − / + to scale portions, then **Add to shopping list**. The list adds matching items together
+5. With **Metric units** on (Settings, default), cups/oz/lb show as g or ml and °F as °C; tsp/tbsp stay.
+6. Tap − / + to scale portions, then **Add to shopping list**. The list adds matching items together
    (e.g. 1 cup + 100 ml cream = 340 ml) and shows which recipe each item came from.
 
-If Instagram won't serve a caption (some posts need a login), the app asks you to paste the caption text.
-That path always works.
+Many reels need an Instagram login before the caption can be read. You can **sign in to Instagram inside
+RatChef** (Settings → Instagram). You type your password on Instagram's own login page, and the app keeps only the login
+cookie on your phone. Signed in, the app requests the post's data the way instagram.com does in a browser. Instagram
+doesn't like apps doing this, so keep it to personal use: it could flag the account, and it can stop working at any time.
+
+If a caption still can't be read, the app asks you to paste the caption text. That always works.
 
 ## Build
 
@@ -41,7 +46,9 @@ Create a free key at https://aistudio.google.com/apikey and paste it in **Settin
 | `core/RecipeParser.java` | Caption → recipe rules (plain JVM, unit-tested) |
 | `core/Quantities.java`, `core/Units.java` | Amount parsing, unit aliases (EN/DE), ½-style formatting |
 | `core/ShoppingMerger.java` | Adding up shopping-list items, g→kg / ml→l |
-| `net/CaptionFetcher.kt` | Reel link → caption (embed page, JSON, og:description) |
+| `net/CaptionFetcher.kt` | Reel link → caption (signed-in media info, embed page, JSON, og:description) |
+| `net/InstagramSession.kt`, `ui/InstagramLoginScreen.kt` | Optional Instagram sign-in (WebView cookies) |
+| `core/Metric.java` | cups/oz/lb → g/ml, °F → °C, inches → cm |
 | `net/GeminiClient.kt` | Optional AI conversion with a JSON schema |
 | `data/Store.kt` | JSON files in private app storage, settings |
 | `ui/*` | Jetpack Compose screens |

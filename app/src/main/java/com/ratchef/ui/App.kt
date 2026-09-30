@@ -30,6 +30,14 @@ fun App(vm: AppViewModel) {
         }
     }
 
+    if (vm.showInstagramLogin) {
+        InstagramLoginScreen(
+            onSignedIn = { vm.onInstagramSignedIn() },
+            onCancel = { vm.showInstagramLogin = false },
+        )
+        return
+    }
+
     val open = vm.openRecipe
     BackHandler(enabled = open != null) { vm.openRecipeId = null }
 

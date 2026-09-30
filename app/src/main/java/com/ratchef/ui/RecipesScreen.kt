@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -150,6 +151,9 @@ private fun CaptionCard(vm: AppViewModel, state: ImportState.NeedsCaption) {
                     TextButton(onClick = { runCatching { uri.openUri(state.url) } }) { Text("Open reel") }
                 }
                 TextButton(onClick = { clipboard.getText()?.text?.let { caption = it } }) { Text("Paste caption") }
+            }
+            if (!vm.instagramSignedIn && state.url.contains("instagram.com") && state.caption.isEmpty()) {
+                FilledTonalButton(onClick = { vm.showInstagramLogin = true }) { Text("Sign in to Instagram") }
             }
             OutlinedTextField(
                 value = caption,

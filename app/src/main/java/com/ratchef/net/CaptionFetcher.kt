@@ -8,9 +8,10 @@ import java.net.URL
 /**
  * Reads the caption of a public Instagram post/reel without an account or API.
  *
- * Instagram has no public API for this, so it works the way a browser does: it loads the public
- * embed page and falls back to the page's og:description tag. If Instagram changes its pages, this
- * returns null and the app asks you to paste the caption instead.
+ * Instagram has no public API for this, so it works the way a browser does. Signed out, it loads the
+ * public embed page and falls back to the page's og:description tag. Signed in (your own login, see
+ * InstagramSession), it first asks for the post's data like instagram.com does. If Instagram changes
+ * its pages, this returns null and the app asks you to paste the caption instead.
  */
 object CaptionFetcher {
 
@@ -39,19 +40,60 @@ object CaptionFetcher {
         return text.replace(url, "").trim().length < 40
     }
 
-    /** Blocking; call from Dispatchers.IO. Returns null if no caption could be found. */
-    fun fetch(url: String): String? {
+    /**
+     * Blocking; call from Dispatchers.IO. Returns null if no caption could be found.
+     * [cookies] is your own Instagram login (see InstagramSession); null = not signed in.
+     */
+    fun fetch(url: String, cookies: String? = null, csrf: String? = null): String? {
         val ig = INSTAGRAM.find(url)
         if (ig != null) {
             val code = ig.groupValues[2]
-            val embed = runCatching { get("https://www.instagram.com/p/$code/embed/captioned/") }.getOrNull()
+            // Signed in: ask for the post's data the same way instagram.com does in your browser.
+            if (cookies != null) {
+                runCatching { fromMediaInfo(code, cookies, csrf) }.getOrNull()?.let { return it }
+            }
+            val embed = runCatching { get("https://www.instagram.com/p/$code/embed/captioned/", cookies) }.getOrNull()
             embed?.let { html -> fromEmbed(html) ?: fromJson(html) }?.let { return it }
         }
-        val page = runCatching { get(url) }.getOrNull() ?: return null
+        val page = runCatching { get(url, cookies) }.getOrNull() ?: return null
         return fromJson(page) ?: fromOgDescription(page)
     }
 
-    private fun get(url: String): String {
+    /** Instagram's public web app id, sent by instagram.com itself with every request. */
+    private const val IG_WEB_APP_ID = "936619743392459"
+    private const val ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+    /** Shortcode ("C9xYz…") -> numeric media id. */
+    internal fun mediaId(shortcode: String): String? {
+        var id = java.math.BigInteger.ZERO
+        val sixtyFour = java.math.BigInteger.valueOf(64)
+        for (c in shortcode.take(11)) {
+            val idx = ALPHABET.indexOf(c)
+            if (idx < 0) return null
+            id = id.multiply(sixtyFour).add(java.math.BigInteger.valueOf(idx.toLong()))
+        }
+        return id.toString()
+    }
+
+    private fun fromMediaInfo(code: String, cookies: String, csrf: String?): String? {
+        val id = mediaId(code) ?: return null
+        val json = get(
+            "https://www.instagram.com/api/v1/media/$id/info/",
+            cookies,
+            extra = buildMap {
+                put("X-IG-App-ID", IG_WEB_APP_ID)
+                put("X-Requested-With", "XMLHttpRequest")
+                put("Referer", "https://www.instagram.com/")
+                put("Accept", "application/json")
+                if (csrf != null) put("X-CSRFToken", csrf)
+            },
+        )
+        val item = JSONObject(json).optJSONArray("items")?.optJSONObject(0) ?: return null
+        val text = item.optJSONObject("caption")?.optString("text")
+        return text?.trim()?.takeIf { it.length > 10 }
+    }
+
+    private fun get(url: String, cookies: String? = null, extra: Map<String, String> = emptyMap()): String {
         val conn = URL(url).openConnection() as HttpURLConnection
         try {
             conn.instanceFollowRedirects = true
@@ -60,6 +102,8 @@ object CaptionFetcher {
             conn.setRequestProperty("User-Agent", UA)
             conn.setRequestProperty("Accept", "text/html,application/xhtml+xml")
             conn.setRequestProperty("Accept-Language", "en-US,en;q=0.9,de;q=0.8")
+            if (cookies != null) conn.setRequestProperty("Cookie", cookies)
+            extra.forEach { (k, v) -> conn.setRequestProperty(k, v) }
             if (conn.responseCode !in 200..299) error("HTTP ${conn.responseCode}")
             return conn.inputStream.use { stream ->
                 val bytes = stream.readBytes()
