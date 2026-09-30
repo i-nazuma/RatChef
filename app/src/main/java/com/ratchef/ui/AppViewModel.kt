@@ -290,7 +290,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             for (r in recipes.filter { it.lang != t && !it.translations.containsKey(t) }) {
                 ensureTranslation(r)
-                kotlinx.coroutines.delay(1500) // stay well inside the free tier's per-minute limit
+                kotlinx.coroutines.delay(5000) // free tier allows ~15 requests a minute on Flash-Lite
             }
         }
     }
