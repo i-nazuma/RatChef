@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write   # to publish the APK as a release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,8 +22,20 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest
       - name: Build APK
-        run: ./gradlew assembleRelease
+        run: |
+          ./gradlew assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk RatChef.apk
       - uses: actions/upload-artifact@v4
         with:
           name: RatChef-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: RatChef.apk
+      # Newest APK is always at https://github.com/<owner>/<repo>/releases/latest/download/RatChef.apk
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: RatChef build ${{ github.run_number }}
+          body: ${{ github.event.head_commit.message }}
+          files: RatChef.apk
+          make_latest: true

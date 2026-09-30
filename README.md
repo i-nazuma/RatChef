@@ -28,8 +28,11 @@ If a caption still can't be read, the app asks you to paste the caption text. Th
 **Android Studio:** open this folder, let Gradle sync, press Run. You need Android Studio Ladybug (2024.2)
 or newer, and the phone must run Android 8.0 or later.
 
-**No Android Studio:** push the folder to a GitHub repo. The included workflow
-(`.github/workflows/build.yml`) runs the tests and uploads an installable APK as a build artifact.
+**No Android Studio:** every push to `main` runs the tests, builds the APK and publishes it as a GitHub
+Release. The newest APK is always at `https://github.com/i-nazuma/RatChef/releases/latest/download/RatChef.apk`.
+
+All builds are signed with the same key (`app/ratchef-sideload.jks`), so a new APK installs over the old one
+and keeps your data. The key is only for sideloading; don't reuse it for a Play Store release.
 
 **Command line:** `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`
 (signed with the debug key, which is fine for personal sideloading).

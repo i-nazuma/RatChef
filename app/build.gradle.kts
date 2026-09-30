@@ -16,11 +16,24 @@ android {
         versionName = "1.0"
     }
 
+    // One fixed key for every build (CI and Android Studio), so a new APK installs over the old one
+    // and keeps your recipes. It's only for sideloading this personal app, not for the Play Store.
+    signingConfigs {
+        create("sideload") {
+            storeFile = file("ratchef-sideload.jks")
+            storePassword = "ratchef-sideload"
+            keyAlias = "ratchef"
+            keyPassword = "ratchef-sideload"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Signed with the debug key so `assembleRelease` gives an installable APK for personal use.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("sideload")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("sideload")
         }
     }
 
