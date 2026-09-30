@@ -2,5 +2,7 @@
     <style name="Theme.RatChef" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Same as the app's surface colour, so nothing white shows during transitions -->
+        <item name="android:windowBackground">@color/window_bg</item>
     </style>
 </resources>

@@ -3,6 +3,7 @@ package com.ratchef.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -29,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntOffset
 
 @Composable
 fun App(vm: AppViewModel) {
@@ -51,17 +53,19 @@ fun App(vm: AppViewModel) {
     val open = vm.openRecipe
     BackHandler(enabled = open != null) { vm.openRecipeId = null }
 
-    // Recipe opens by sliding in from the right and slides back out; the list stays underneath.
+    // Plain slide, no fading: the recipe pushes in from the right over the list and slides back
+    // out to the right. Both screens are opaque the whole time, so nothing flashes through.
     AnimatedContent(
         targetState = open?.id,
         transitionSpec = {
             val opening = targetState != null
+            val spec = tween<IntOffset>(280, easing = FastOutSlowInEasing)
             if (opening) {
-                (slideInHorizontally(tween(300)) { it / 4 } + fadeIn(tween(300))) togetherWith
-                    fadeOut(tween(150))
+                (slideInHorizontally(spec) { it } togetherWith slideOutHorizontally(spec) { -it / 4 })
+                    .apply { targetContentZIndex = 1f }
             } else {
-                fadeIn(tween(250)) togetherWith
-                    (slideOutHorizontally(tween(250)) { it / 4 } + fadeOut(tween(250)))
+                (slideInHorizontally(spec) { -it / 4 } togetherWith slideOutHorizontally(spec) { it })
+                    .apply { targetContentZIndex = -1f }
             }
         },
         label = "recipe",
