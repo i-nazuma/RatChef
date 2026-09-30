@@ -47,7 +47,7 @@ public final class Units {
     }
 
     static {
-        add("g", "g", Family.MASS, 1, false, "gr", "gram", "grams", "gramm", "gramms", "grammes", "gramme");
+        add("g", "g", Family.MASS, 1, false, "gr", "gram", "grams", "gramm", "gramms", "grammes", "gramme", "gramos", "grammi");
         add("kg", "kg", Family.MASS, 1000, false, "kilo", "kilos", "kilogram", "kilograms", "kilogramm");
         add("oz", "oz", Family.MASS, 28.35, true, "ounce", "ounces");
         add("lb", "lb", Family.MASS, 453.6, true, "lbs", "pound", "pounds");
@@ -55,24 +55,26 @@ public final class Units {
         add("ml", "ml", Family.VOLUME, 1, false, "milliliter", "milliliters", "millilitre", "millilitres");
         add("cl", "cl", Family.VOLUME, 10, false, "centiliter", "zentiliter");
         add("dl", "dl", Family.VOLUME, 100, false, "deciliter", "deziliter");
-        add("l", "l", Family.VOLUME, 1000, false, "liter", "liters", "litre", "litres", "ltr");
-        add("tsp", "tsp", Family.VOLUME, 5, true, "teaspoon", "teaspoons", "tl", "teelöffel", "teeloeffel", "tsps");
+        add("l", "l", Family.VOLUME, 1000, false, "liter", "liters", "litre", "litres", "ltr", "litro", "litros");
+        add("tsp", "tsp", Family.VOLUME, 5, true, "teaspoon", "teaspoons", "tl", "teelöffel", "teeloeffel", "tsps",
+                "cucharadita", "cucharaditas", "cdta", "cdtas", "cdita", "cditas", "cucchiaino", "cucchiaini", "càc");
         add("tbsp", "tbsp", Family.VOLUME, 15, true, "tablespoon", "tablespoons", "tbs", "tbl", "tbsps",
+                "cucharada", "cucharadas", "cda", "cdas", "cucchiaio", "cucchiai", "càs",
                 "el", "esslöffel", "essloeffel");
-        add("cup", "cup", Family.VOLUME, 240, true, "cups", "tasse", "tassen");
+        add("cup", "cup", Family.VOLUME, 240, true, "cups", "tasse", "tassen", "taza", "tazas");
 
         // Count-like units. Merged only with the same unit.
-        add("pinch", "pinch", Family.COUNT, 1, true, "pinches", "prise", "prisen", "msp");
-        add("clove", "clove", Family.COUNT, 1, true, "cloves", "zehe", "zehen");
-        add("can", "can", Family.COUNT, 1, true, "cans", "tin", "tins", "dose", "dosen");
+        add("pinch", "pinch", Family.COUNT, 1, true, "pinches", "prise", "prisen", "msp", "pizca", "pizcas", "pizzico");
+        add("clove", "clove", Family.COUNT, 1, true, "cloves", "zehe", "zehen", "diente", "dientes", "spicchio", "spicchi", "gousse", "gousses");
+        add("can", "can", Family.COUNT, 1, true, "cans", "tin", "tins", "dose", "dosen", "lata", "latas");
         add("pack", "pack", Family.COUNT, 1, true, "packs", "package", "packages", "packet", "packets", "pkg",
                 "pck", "pkt", "packung", "packungen", "päckchen", "pckg");
-        add("bunch", "bunch", Family.COUNT, 1, true, "bunches", "bund", "bünde");
+        add("bunch", "bunch", Family.COUNT, 1, true, "bunches", "bund", "bünde", "manojo", "manojos");
         add("handful", "handful", Family.COUNT, 1, true, "handfuls", "handvoll");
         add("slice", "slice", Family.COUNT, 1, true, "slices", "scheibe", "scheiben");
         add("piece", "pc", Family.COUNT, 1, true, "pc", "pcs", "piece", "pieces", "stk", "stück", "stueck");
         add("sprig", "sprig", Family.COUNT, 1, true, "sprigs", "zweig", "zweige");
-        add("dash", "dash", Family.COUNT, 1, true, "dashes", "schuss", "spritzer", "splash", "squeeze", "squeezes");
+        add("dash", "dash", Family.COUNT, 1, true, "dashes", "schuss", "spritzer", "splash", "squeeze", "squeezes", "chorrito", "chorro");
         add("stick", "stick", Family.COUNT, 1, true, "sticks", "stange", "stangen");
         add("cube", "cube", Family.COUNT, 1, true, "cubes", "würfel");
         add("scoop", "scoop", Family.COUNT, 1, true, "scoops", "messlöffel", "messbecher");

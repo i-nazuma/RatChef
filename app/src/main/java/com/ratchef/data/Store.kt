@@ -20,6 +20,8 @@ data class Settings(
     val listLanguage: String = "auto",
     /** Shopping list sections: "aisle" or "recipe". */
     val shoppingGroup: String = "aisle",
+    /** Recipes shown "original", in "en", "de", or "auto" (phone language). Translation uses Gemini. */
+    val recipeLanguage: String = "original",
 ) {
     val listGerman: Boolean
         get() = when (listLanguage) {
@@ -93,6 +95,7 @@ class Store(context: Context) {
         metric = prefs.getBoolean("metric", true),
         listLanguage = prefs.getString("listLanguage", "auto") ?: "auto",
         shoppingGroup = prefs.getString("shoppingGroup", "aisle") ?: "aisle",
+        recipeLanguage = prefs.getString("recipeLanguage", "original") ?: "original",
     )
 
     fun saveSettings(s: Settings) {
@@ -103,6 +106,7 @@ class Store(context: Context) {
             .putBoolean("metric", s.metric)
             .putString("listLanguage", s.listLanguage)
             .putString("shoppingGroup", s.shoppingGroup)
+            .putString("recipeLanguage", s.recipeLanguage)
             .apply()
     }
 
@@ -161,6 +165,16 @@ class Store(context: Context) {
             put("createdAt", r.createdAt)
             put("ingredients", JSONArray().apply { r.ingredients.forEach { put(ingredientToJson(it)) } })
             put("steps", JSONArray(r.steps))
+            put("lang", r.lang)
+            put("translations", JSONObject().apply {
+                r.translations.forEach { (code, t) ->
+                    put(code, JSONObject().apply {
+                        put("title", t.title)
+                        put("ingredients", JSONArray().apply { t.ingredients.forEach { put(ingredientToJson(it)) } })
+                        put("steps", JSONArray(t.steps))
+                    })
+                }
+            })
         }
 
         fun recipeFromJson(o: JSONObject) = Recipe().apply {
@@ -175,6 +189,19 @@ class Store(context: Context) {
             for (k in 0 until ing.length()) ingredients.add(ingredientFromJson(ing.getJSONObject(k)))
             val st = o.optJSONArray("steps") ?: JSONArray()
             for (k in 0 until st.length()) steps.add(st.getString(k))
+            lang = o.optString("lang")
+            o.optJSONObject("translations")?.let { tr ->
+                for (code in tr.keys()) {
+                    val t = tr.getJSONObject(code)
+                    translations[code] = Recipe.Translation().apply {
+                        title = t.optString("title")
+                        val ti = t.optJSONArray("ingredients") ?: JSONArray()
+                        for (k in 0 until ti.length()) ingredients.add(ingredientFromJson(ti.getJSONObject(k)))
+                        val ts = t.optJSONArray("steps") ?: JSONArray()
+                        for (k in 0 until ts.length()) steps.add(ts.getString(k))
+                    }
+                }
+            }
         }
 
         /** Recipe is a mutable Java object; UI state always gets a fresh copy. */

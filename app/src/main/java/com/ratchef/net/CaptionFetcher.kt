@@ -25,6 +25,31 @@ object CaptionFetcher {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
             "Chrome/128.0.0.0 Safari/537.36"
 
+    private val YOUTUBE = Regex(
+        """https?://(?:www\.|m\.)?(?:youtube\.com/(?:shorts/|watch\?(?:[^ ]*&)?v=|live/)|youtu\.be/)([A-Za-z0-9_-]{11})""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** YouTube video id (Shorts, watch or youtu.be links), or null. */
+    fun youtubeId(text: String): String? = YOUTUBE.find(text)?.groupValues?.get(1)
+
+    fun youtubeUrl(id: String) = "https://www.youtube.com/watch?v=$id"
+
+    /**
+     * The video's description (where creators often put the recipe). Blocking; call from Dispatchers.IO.
+     * The SOCS cookie is YouTube's own "consent answered" cookie; without it EU requests get a consent page.
+     */
+    fun youtubeDescription(id: String): String? {
+        val html = runCatching {
+            get(youtubeUrl(id), extra = mapOf("Cookie" to "SOCS=CAI"))
+        }.getOrNull() ?: return null
+        Regex(""""shortDescription"\s*:\s*"((?:[^"\\]|\\.)*)"""").find(html)?.let { m ->
+            val text = runCatching { JSONObject("{\"t\":\"${m.groupValues[1]}\"}").getString("t") }.getOrNull()
+            if (!text.isNullOrBlank()) return text
+        }
+        return fromOgDescription(html)
+    }
+
     /** Pulls the reel link out of whatever was shared ("Check out this reel https://…?igsh=…"). */
     fun extractUrl(text: String): String? {
         INSTAGRAM.find(text)?.let { m ->

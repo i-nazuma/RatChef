@@ -19,14 +19,15 @@ public final class RecipeParser {
 
     private static final Pattern INGR_HEADER = Pattern.compile(
             "^(?:the\\s+)?(?:ingredients?(?:\\s+list)?|zutaten(?:liste)?|you(?:'ll|’ll| will) need|"
-                    + "what you(?:'ll|’ll)? need|ingredienti|ingrédients|ingredientes|shopping list|"
+                    + "what you(?:'ll|’ll)? need|ingredienti|ingrédients|ingredientes|necesitas|shopping list|"
                     + "einkaufsliste|was du brauchst)"
                     + "\\s*(\\([^)]*\\))?\\s*(?:$|[:：\\-–—]\\s*(.*)$)", FLAGS);
 
     private static final Pattern STEP_HEADER = Pattern.compile(
             "^(?:the\\s+)?(?:instructions?|method|directions?|steps|preparation|how to make(?: it)?|"
                     + "recipe steps|zubereitung|anleitung|so geht'?s|so geht’s|procedimento|préparation|"
-                    + "preparación|instrucciones|how to)"
+                    + "preparación|preparacion|elaboración|elaboracion|modo de preparación|pasos|instrucciones|"
+                    + "procedimiento|preparazione|how to)"
                     + "\\s*(\\([^)]*\\))?\\s*(?:$|[:：\\-–—]\\s*(.*)$)", FLAGS);
 
     private static final Pattern NUMBERED = Pattern.compile(

@@ -70,6 +70,29 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Recipe language", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Recipes in other languages (Spanish, Italian, …) are translated with Gemini. " +
+                        "Amounts and units are always kept from the original.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ModeOption("As written", s.recipeLanguage == "original") { vm.updateSettings(s.copy(recipeLanguage = "original")) }
+                ModeOption("Phone language", s.recipeLanguage == "auto") { vm.updateSettings(s.copy(recipeLanguage = "auto")) }
+                ModeOption("Deutsch", s.recipeLanguage == "de") { vm.updateSettings(s.copy(recipeLanguage = "de")) }
+                ModeOption("English", s.recipeLanguage == "en") { vm.updateSettings(s.copy(recipeLanguage = "en")) }
+                if (s.recipeLanguage != "original" && s.apiKey.isBlank()) {
+                    Text(
+                        "Add a Gemini key below to translate.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Shopping list language", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Items from English and German recipes are named in one language, so the same thing merges.",

@@ -104,7 +104,7 @@ fun RecipesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         }
         items(vm.recipes, key = { it.id }) { r ->
             // New recipes slide in at the top, deleted ones fade out.
-            Box(Modifier.animateItem()) { RecipeCard(r) { vm.openRecipeId = r.id } }
+            Box(Modifier.animateItem()) { RecipeCard(vm.shown(r)) { vm.openRecipeId = r.id } }
         }
     }
 }

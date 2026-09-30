@@ -40,14 +40,15 @@ public final class Quantities {
                 {"five", "5"}, {"six", "6"}, {"half", "0.5"}, {"half a", "0.5"},
                 {"ein", "1"}, {"eine", "1"}, {"einen", "1"}, {"zwei", "2"}, {"drei", "3"}, {"vier", "4"},
                 {"fünf", "5"}, {"sechs", "6"}, {"halbe", "0.5"}, {"halber", "0.5"}, {"halb", "0.5"},
-                {"eine halbe", "0.5"}, {"ein halber", "0.5"}, {"ein halbes", "0.5"}
+                {"eine halbe", "0.5"}, {"ein halber", "0.5"}, {"ein halbes", "0.5"},
+                {"un", "1"}, {"una", "1"}, {"uno", "1"}, {"dos", "2"}, {"tres", "3"}, {"medio", "0.5"}, {"media", "0.5"}
         };
         for (String[] p : w) WORDS.put(p[0], Double.parseDouble(p[1]));
     }
 
     private static final Pattern LEADING_WORD = Pattern.compile(
             "^(half a|eine halbe|ein halber|ein halbes|a|an|one|two|three|four|five|six|half|"
-                    + "ein|eine|einen|zwei|drei|vier|fünf|sechs|halbe|halber|halb)\\s+",
+                    + "ein|eine|einen|zwei|drei|vier|fünf|sechs|halbe|halber|halb|un|una|uno|dos|tres|medio|media)\\s+",
             Pattern.CASE_INSENSITIVE);
 
     private Quantities() {}

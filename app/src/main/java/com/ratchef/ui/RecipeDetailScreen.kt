@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -50,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +71,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ratchef.core.Ingredient
+import com.ratchef.core.LanguageGuess
 import com.ratchef.core.Metric
 import com.ratchef.core.Quantities
 import com.ratchef.core.Recipe
@@ -89,12 +92,15 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
     val done = remember(recipe.id) { mutableStateListOf<Int>() }
     val uri = LocalUriHandler.current
     val metric = vm.settings.metric
+    // What's displayed (and shopped): the translation if there is one, else the recipe as written.
+    val shownRecipe = vm.shown(recipe)
+    LaunchedEffect(recipe.id, vm.recipeTarget) { vm.ensureTranslation(recipe) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text(recipe.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(shownRecipe.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
@@ -130,15 +136,16 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
             }
 
             item { SectionTitle("Ingredients") }
-            if (recipe.ingredients.isEmpty()) item { Hint("No ingredients found – tap ✎ to edit the caption.") }
-            items(recipe.ingredients) { ing ->
+            if (vm.needsTranslation(recipe)) item { LanguageBar(vm, recipe) }
+            if (shownRecipe.ingredients.isEmpty()) item { Hint("No ingredients found – tap ✎ to edit the caption.") }
+            items(shownRecipe.ingredients) { ing ->
                 val scaled = ing.scaled(factor)
                 IngredientRow(ShoppingMerger.tidy(if (metric) Metric.convert(scaled) else scaled))
             }
 
             item { SectionTitle("Steps") }
-            if (recipe.steps.isEmpty()) item { Hint("No steps in the caption.") }
-            itemsIndexed(recipe.steps) { i, step ->
+            if (shownRecipe.steps.isEmpty()) item { Hint("No steps in the caption.") }
+            itemsIndexed(shownRecipe.steps) { i, step ->
                 StepRow(i + 1, if (metric) Metric.convertText(step) else step, i in done) { if (i in done) done.removeAll { it == i } else done.add(i) }
             }
 
@@ -188,6 +195,37 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
         },
         dismissButton = { TextButton(onClick = { showDelete = false }) { Text("Cancel") } },
     )
+}
+
+/** "Translated from Spanish · Show original", or progress / a hint when no key is set. */
+@Composable
+private fun LanguageBar(vm: AppViewModel, recipe: Recipe) {
+    val from = LanguageGuess.displayName(recipe.lang)
+    val target = vm.recipeTarget ?: return
+    val hasTranslation = recipe.translations.containsKey(target)
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+        when {
+            recipe.id in vm.translating -> {
+                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Hint("Translating from $from…")
+            }
+            hasTranslation -> {
+                val original = recipe.id in vm.showOriginal
+                Text(
+                    if (original) "Original ($from)" else "Translated from $from",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { vm.toggleOriginal(recipe.id) }) {
+                    Text(if (original) "Show translation" else "Show original")
+                }
+            }
+            vm.settings.apiKey.isBlank() -> Hint("Add a Gemini key in Settings to translate this recipe.")
+            else -> TextButton(onClick = { vm.ensureTranslation(recipe) }) { Text("Translate") }
+        }
+    }
 }
 
 @Composable

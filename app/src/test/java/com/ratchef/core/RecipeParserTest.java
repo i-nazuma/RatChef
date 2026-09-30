@@ -152,6 +152,34 @@ public class RecipeParserTest {
     }
 
     @Test
+    public void spanishCaptionAndLanguage() {
+        String es = "Pasta cremosa de ajo\nIngredientes:\n- 200 gramos de espaguetis\n- 2 cucharadas de mantequilla\n"
+                + "- 3 dientes de ajo\n- una taza de nata\n- una pizca de sal\nPreparación:\n"
+                + "1. Cocina la pasta hasta que esté al dente.\n2. Derrite la mantequilla con el ajo y añade la nata.";
+        Recipe r = RecipeParser.parse(es);
+        assertEquals(5, r.ingredients.size());
+        assertEquals(2, r.steps.size());
+        assertEquals("g", r.ingredients.get(0).unit);
+        assertEquals("Espaguetis", r.ingredients.get(0).name);
+        assertEquals("tbsp", r.ingredients.get(1).unit);
+        assertEquals("clove", r.ingredients.get(2).unit);
+        assertEquals("cup", r.ingredients.get(3).unit);
+        assertEquals("pinch", r.ingredients.get(4).unit);
+        assertEquals("es", LanguageGuess.guess(es));
+        assertEquals("de", LanguageGuess.guess(DE));
+        assertEquals("en", LanguageGuess.guess(EN));
+
+        Recipe.Translation t = new Recipe.Translation();
+        t.title = "Creamy garlic pasta";
+        t.ingredients.add(new Ingredient(200, Double.NaN, "g", "Spaghetti", ""));
+        t.steps.add("Cook the pasta.");
+        Recipe shown = r.translatedCopy(t);
+        assertEquals("Creamy garlic pasta", shown.title);
+        assertEquals(200.0, shown.ingredients.get(0).qty, 1e-9);
+        assertEquals(r.servings, shown.servings);
+    }
+
+    @Test
     public void shoppingMerge() {
         List<Ingredient> l = new ArrayList<>();
         l.add(RecipeParser.parseIngredient("1 cup heavy cream"));

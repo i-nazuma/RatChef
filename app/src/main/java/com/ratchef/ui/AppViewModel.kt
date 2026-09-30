@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ratchef.core.Canon
 import com.ratchef.core.Ingredient
+import com.ratchef.core.LanguageGuess
 import com.ratchef.core.Metric
 import com.ratchef.core.Recipe
 import com.ratchef.core.RecipeParser
@@ -45,7 +46,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val store = Store(app)
 
-    var recipes by mutableStateOf(store.loadRecipes().sortedByDescending { it.createdAt })
+    var recipes by mutableStateOf(
+        store.loadRecipes().sortedByDescending { it.createdAt }.onEach { r ->
+            if (r.lang.isEmpty()) {
+                r.lang = LanguageGuess.guess(r.caption + "\n" + r.title + "\n" + r.steps.joinToString("\n"))
+            }
+        }
+    )
         private set
     var shopping by mutableStateOf(store.loadShopping())
         private set
@@ -76,6 +83,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         tab = Tab.RECIPES
         openRecipeId = null
 
+        val youtube = CaptionFetcher.youtubeId(input)
+        if (youtube != null && CaptionFetcher.isJustALink(input)) {
+            importYoutube(youtube)
+            return
+        }
+
         val url = CaptionFetcher.extractUrl(input)
         if (url == null || !CaptionFetcher.isJustALink(input)) {
             // The user pasted the caption itself (maybe with a link in it).
@@ -101,6 +114,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 )
             } else {
                 parseAndSave(url, caption, existingId = null)
+            }
+        }
+    }
+
+    /**
+     * YouTube Shorts / videos: read the description, then (with a Gemini key) let Gemini watch the
+     * video and combine both. Without a key the description is parsed offline.
+     */
+    private fun importYoutube(id: String) {
+        val url = CaptionFetcher.youtubeUrl(id)
+        importState = ImportState.Loading("Reading the video description…")
+        viewModelScope.launch {
+            val description = withContext(Dispatchers.IO) {
+                runCatching { CaptionFetcher.youtubeDescription(id) }.getOrNull()
+            }
+            val s = settings
+            if (s.apiKey.isNotBlank() && s.aiMode != AiMode.OFF) {
+                importState = ImportState.Loading("Gemini is watching the video…")
+                val ai = withContext(Dispatchers.IO) {
+                    runCatching {
+                        GeminiClient.parseVideo(url, description, s.apiKey, s.model.ifBlank { Settings.DEFAULT_MODEL })
+                    }
+                }
+                val recipe = ai.getOrNull()
+                if (recipe != null && recipe.ingredients.isNotEmpty()) {
+                    saveRecipe(recipe, url, description ?: "", existingId = null)
+                    return@launch
+                }
+                message = "Couldn't read the video: " + (ai.exceptionOrNull()?.message ?: "no recipe found")
+            }
+            if (!description.isNullOrBlank()) {
+                parseAndSave(url, description, existingId = null)
+            } else {
+                importState = ImportState.NeedsCaption(
+                    url,
+                    if (s.apiKey.isBlank()) "To read recipes from the video itself, add a Gemini key in Settings. " +
+                        "Or paste the recipe text below."
+                    else "Couldn't get a recipe from this video. Paste the recipe text below.",
+                )
             }
         }
     }
@@ -151,7 +203,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             )
             return
         }
+        saveRecipe(recipe, url, caption, existingId, titleOverride)
+    }
 
+    private fun saveRecipe(
+        recipe: Recipe,
+        url: String,
+        caption: String,
+        existingId: String?,
+        titleOverride: String? = null,
+    ) {
         val old = existingId?.let { id -> recipes.firstOrNull { it.id == id } }
         recipe.id = existingId ?: UUID.randomUUID().toString()
         recipe.sourceUrl = url
@@ -159,6 +220,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         recipe.createdAt = old?.createdAt ?: System.currentTimeMillis()
         if (recipe.servings == 0 && old != null) recipe.servings = old.servings
         if (!titleOverride.isNullOrBlank()) recipe.title = titleOverride.trim()
+        if (recipe.lang.isEmpty()) recipe.lang = guessLanguage(recipe)
 
         recipes = if (old != null) recipes.map { if (it.id == recipe.id) recipe else it } else listOf(recipe) + recipes
         store.saveRecipes(recipes)
@@ -167,7 +229,75 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (!recipe.looksComplete() && message == null) {
             message = "Parsed partially – check the recipe or edit the caption."
         }
+        ensureTranslation(recipe)
     }
+
+    // ------------------------------------------------------------------ translation
+
+    /** Language recipes should be shown in, or null for "as written". */
+    val recipeTarget: String?
+        get() = when (settings.recipeLanguage) {
+            "en" -> "en"
+            "de" -> "de"
+            "auto" -> java.util.Locale.getDefault().language.takeIf { it == "en" || it == "de" }
+            else -> null
+        }
+
+    /** Recipes the user flipped back to their original language (this session). */
+    var showOriginal by mutableStateOf(setOf<String>())
+        private set
+    var translating by mutableStateOf(setOf<String>())
+        private set
+
+    fun toggleOriginal(id: String) {
+        showOriginal = if (id in showOriginal) showOriginal - id else showOriginal + id
+    }
+
+    fun needsTranslation(r: Recipe): Boolean {
+        val t = recipeTarget ?: return false
+        return r.lang != t
+    }
+
+    /** The recipe as it should be displayed and shopped: translated if a translation exists. */
+    fun shown(r: Recipe): Recipe {
+        val t = recipeTarget ?: return r
+        if (r.id in showOriginal || r.lang == t) return r
+        val tr = r.translations[t] ?: return r
+        return r.translatedCopy(tr)
+    }
+
+    /** Translates in the background if needed and possible (Gemini key). */
+    fun ensureTranslation(r: Recipe) {
+        val t = recipeTarget ?: return
+        if (r.lang == t || r.translations.containsKey(t) || r.id in translating) return
+        val s = settings
+        if (s.apiKey.isBlank()) return
+        translating = translating + r.id
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { GeminiClient.translate(r, t, s.apiKey, s.model.ifBlank { Settings.DEFAULT_MODEL }) }
+            }
+            result.onSuccess { tr -> updateRecipe(r.id) { translations[t] = tr } }
+                .onFailure { e -> message = "Couldn't translate “${r.title}”: ${e.message}" }
+            translating = translating - r.id
+        }
+    }
+
+    /** After changing the recipe language: translate the saved recipes one by one. */
+    private fun translateAll() {
+        val t = recipeTarget ?: return
+        if (settings.apiKey.isBlank()) return
+        viewModelScope.launch {
+            for (r in recipes.filter { it.lang != t && !it.translations.containsKey(t) }) {
+                ensureTranslation(r)
+                kotlinx.coroutines.delay(1500) // stay well inside the free tier's per-minute limit
+            }
+        }
+    }
+
+    private fun guessLanguage(r: Recipe): String =
+        LanguageGuess.guess(r.caption + "\n" + r.title + "\n" + r.steps.joinToString("\n") +
+            "\n" + r.ingredients.joinToString("\n") { it.name })
 
     // ------------------------------------------------------------------ instagram
 
@@ -220,10 +350,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun addToShopping(recipe: Recipe, factor: Double) {
         var list = shopping
         var added = 0
-        for (raw in recipe.ingredients) {
+        val shownRecipe = shown(recipe)
+        for (raw in shownRecipe.ingredients) {
             val ing = raw.scaled(factor).let { if (settings.metric) Metric.convert(it) else it }
             if (ShoppingMerger.shouldSkip(ing)) continue
-            list = addOne(list, ing, recipe.title)
+            list = addOne(list, ing, shownRecipe.title)
             added++
         }
         shopping = list
@@ -340,7 +471,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ settings
 
     fun updateSettings(s: Settings) {
+        val languageChanged = s.recipeLanguage != settings.recipeLanguage
         settings = s
         store.saveSettings(s)
+        if (languageChanged) translateAll()
     }
 }
