@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RatChef</string>
+    <string name="share_label">Save as recipe</string>
+</resources>
