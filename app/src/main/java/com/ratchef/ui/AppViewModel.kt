@@ -12,6 +12,7 @@ import com.ratchef.core.LanguageGuess
 import com.ratchef.core.Metric
 import com.ratchef.core.Recipe
 import com.ratchef.core.RecipeParser
+import com.ratchef.core.RecipeText
 import com.ratchef.core.ShoppingFormat
 import com.ratchef.core.ShoppingMerger
 import com.ratchef.core.ShoppingSuggestions
@@ -80,6 +81,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val input = text.trim()
         if (input.isEmpty()) return
         if (importState is ImportState.Loading) return
+        if (Store.looksLikeBackup(input)) {
+            importBackup(input)
+            return
+        }
         tab = Tab.RECIPES
         openRecipeId = null
 
@@ -230,6 +235,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             message = "Parsed partially – check the recipe or edit the caption."
         }
         ensureTranslation(recipe)
+    }
+
+    // ------------------------------------------------------------------ sharing & backup
+
+    /** Readable text of a recipe as currently shown (language, portions, metric) for sending to friends. */
+    fun shareText(recipe: Recipe, factor: Double): String {
+        val r = shown(recipe)
+        val german = (if (r === recipe) recipe.lang else recipeTarget ?: recipe.lang) == "de"
+        val ingredients = r.ingredients.map { ing ->
+            val scaled = ing.scaled(factor)
+            ShoppingMerger.tidy(if (settings.metric) Metric.convert(scaled) else scaled)
+        }
+        val steps = if (settings.metric) r.steps.map { Metric.convertText(it) } else r.steps
+        val servings = if (r.servings > 0) Math.round(r.servings * factor).toInt() else 0
+        return RecipeText.format(r.title, servings, ingredients, steps, r.sourceUrl, german)
+    }
+
+    fun exportBackup(): String = Store.exportJson(recipes)
+
+    /** Adds recipes from a backup or a friend's file; skips ones already here. */
+    fun importBackup(text: String) {
+        val incoming = runCatching { Store.importJson(text) }.getOrElse {
+            message = "That file isn't a RatChef export"
+            return
+        }
+        val ids = recipes.map { it.id }.toSet()
+        val fresh = incoming.filter { it.id !in ids }.onEach { if (it.createdAt == 0L) it.createdAt = System.currentTimeMillis() }
+        if (fresh.isNotEmpty()) {
+            recipes = (fresh + recipes).sortedByDescending { it.createdAt }
+            store.saveRecipes(recipes)
+            fresh.forEach { ensureTranslation(it) }
+        }
+        tab = Tab.RECIPES
+        openRecipeId = null
+        val skipped = incoming.size - fresh.size
+        message = "Imported ${fresh.size} recipe" + (if (fresh.size == 1) "" else "s") +
+            (if (skipped > 0) " ($skipped already there)" else "")
     }
 
     // ------------------------------------------------------------------ translation

@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -60,6 +62,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -91,6 +94,7 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
     var showCaption by remember { mutableStateOf(false) }
     val done = remember(recipe.id) { mutableStateListOf<Int>() }
     val uri = LocalUriHandler.current
+    val context = LocalContext.current
     val metric = vm.settings.metric
     // What's displayed (and shopped): the translation if there is one, else the recipe as written.
     val shownRecipe = vm.shown(recipe)
@@ -105,6 +109,12 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                            .putExtra(Intent.EXTRA_SUBJECT, shownRecipe.title)
+                            .putExtra(Intent.EXTRA_TEXT, vm.shareText(recipe, factor))
+                        context.startActivity(Intent.createChooser(send, "Share recipe"))
+                    }) { Icon(Icons.Filled.Share, "Share") }
                     IconButton(onClick = { showEdit = true }) { Icon(Icons.Filled.Edit, "Edit") }
                     IconButton(onClick = { showDelete = true }) { Icon(Icons.Filled.Delete, "Delete") }
                 },

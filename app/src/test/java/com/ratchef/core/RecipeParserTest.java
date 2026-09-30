@@ -180,6 +180,25 @@ public class RecipeParserTest {
     }
 
     @Test
+    public void shareTextRoundTrip() {
+        Recipe r = RecipeParser.parse(EN);
+        String text = RecipeText.format(r.title, 3, r.ingredients, r.steps, "https://www.instagram.com/reel/abc/", false);
+        Recipe back = RecipeParser.parse(text);
+        assertEquals(r.title, back.title);
+        assertEquals(3, back.servings);
+        assertEquals(r.ingredients.size(), back.ingredients.size());
+        assertEquals(r.steps.size(), back.steps.size());
+        for (int i = 0; i < r.ingredients.size(); i++) {
+            assertEquals(r.ingredients.get(i).display(), back.ingredients.get(i).display());
+        }
+        Recipe de = RecipeParser.parse(DE);
+        Recipe backDe = RecipeParser.parse(RecipeText.format(de.title, 4, de.ingredients, de.steps, "", true));
+        assertEquals(4, backDe.servings);
+        assertEquals(de.ingredients.size(), backDe.ingredients.size());
+        assertEquals(de.steps.size(), backDe.steps.size());
+    }
+
+    @Test
     public void shoppingMerge() {
         List<Ingredient> l = new ArrayList<>();
         l.add(RecipeParser.parseIngredient("1 cup heavy cream"));

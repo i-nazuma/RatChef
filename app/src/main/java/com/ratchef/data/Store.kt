@@ -204,6 +204,23 @@ class Store(context: Context) {
             }
         }
 
+        /** Backup / sharing file: {"ratchef": 1, "recipes": [...]}. */
+        fun exportJson(recipes: List<Recipe>): String = JSONObject().apply {
+            put("ratchef", 1)
+            put("exportedAt", System.currentTimeMillis())
+            put("recipes", JSONArray().apply { recipes.forEach { put(recipeToJson(it)) } })
+        }.toString(2)
+
+        /** Recipes from a backup file; throws if it isn't one. */
+        fun importJson(text: String): List<Recipe> {
+            val o = JSONObject(text.trim())
+            require(o.has("ratchef")) { "Not a RatChef file" }
+            val arr = o.optJSONArray("recipes") ?: JSONArray()
+            return (0 until arr.length()).mapNotNull { runCatching { recipeFromJson(arr.getJSONObject(it)) }.getOrNull() }
+        }
+
+        fun looksLikeBackup(text: String): Boolean = text.trimStart().startsWith("{") && text.contains("\"ratchef\"")
+
         /** Recipe is a mutable Java object; UI state always gets a fresh copy. */
         fun copy(r: Recipe, edit: Recipe.() -> Unit = {}): Recipe = recipeFromJson(recipeToJson(r)).apply(edit)
     }

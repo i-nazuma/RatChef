@@ -36,10 +36,12 @@ public final class RecipeParser {
     private static final Pattern SUBHEADER = Pattern.compile("^[^\\d:]{2,40}:$");
 
     private static final Pattern NOISE = Pattern.compile(
-            "^(?:follow|save (?:this|it|for)|like (?:and|&)|comment|share (?:this|with)|tag (?:a|your|someone)|"
+            "^(?:(?:follow|save (?:this|it|for)|like (?:and|&)|comment|share (?:this|with)|tag (?:a|your|someone)|"
                     + "link in (?:my )?bio|full recipe|recipe (?:by|credit|from)|credit|folg|speicher|"
                     + "teile? (?:das|dieses|mit)|kommentier|enjoy|guten appetit|bon app[ée]tit|"
-                    + "let me know|would you try|did you|who else)\\b.*", FLAGS);
+                    + "let me know|would you try|did you|who else)\\b"
+                    + "|source:|quelle:|— shared with ratchef|— geteilt mit ratchef|shared with ratchef|geteilt mit ratchef).*",
+            FLAGS);
 
     private static final Pattern MACROS = Pattern.compile(
             "(?:\\b(?:kcal|calories|cals|kalorien|macros|makros|nährwerte|nutrition(?:al)?(?: info)?)\\b"

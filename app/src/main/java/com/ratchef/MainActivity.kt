@@ -1,6 +1,7 @@
 package com.ratchef
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -37,9 +38,25 @@ class MainActivity : ComponentActivity() {
         handleShare(intent)
     }
 
-    /** Instagram → Share → RatChef sends the reel link as plain text. */
+    /** Instagram → Share → RatChef sends the reel link as plain text; friends send RatChef files. */
     private fun handleShare(intent: Intent?) {
-        if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("text/") != true) return
+        if (intent == null) return
+        // A RatChef file (opened from a messenger or file manager, or shared as a file)
+        @Suppress("DEPRECATION")
+        val fileUri: Uri? = when {
+            intent.action == Intent.ACTION_VIEW -> intent.data
+            intent.action == Intent.ACTION_SEND && intent.type?.startsWith("text/plain") != true ->
+                intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            else -> null
+        }
+        if (fileUri != null) {
+            val text = runCatching {
+                contentResolver.openInputStream(fileUri)?.use { String(it.readBytes(), Charsets.UTF_8) }
+            }.getOrNull()
+            if (text != null) vm.importText(text) else vm.message = "Couldn't open that file"
+            return
+        }
+        if (intent.action != Intent.ACTION_SEND || intent.type?.startsWith("text/") != true) return
         val text = listOfNotNull(
             intent.getStringExtra(Intent.EXTRA_TEXT),
             intent.getStringExtra(Intent.EXTRA_SUBJECT)?.takeIf { it.contains("http") },

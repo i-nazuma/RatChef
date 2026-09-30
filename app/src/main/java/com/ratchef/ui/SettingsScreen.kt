@@ -1,6 +1,12 @@
 package com.ratchef.ui
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,6 +73,8 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 Switch(checked = s.metric, onCheckedChange = { vm.updateSettings(s.copy(metric = it)) })
             }
         }
+
+        BackupCard(vm)
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -234,4 +242,53 @@ private fun SessionPasteDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) 
         confirmButton = { TextButton(enabled = value.isNotBlank(), onClick = { onSave(value) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/** Export all recipes to a file, send them to a friend, or import a RatChef file. */
+@Composable
+private fun BackupCard(vm: AppViewModel) {
+    val context = LocalContext.current
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(vm.exportBackup().toByteArray(Charsets.UTF_8)) }
+        }.onSuccess { vm.message = "Saved ${vm.recipes.size} recipes" }
+            .onFailure { vm.message = "Couldn't save: ${it.message}" }
+    }
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { String(it.readBytes(), Charsets.UTF_8) }
+        }.getOrNull()
+        if (text != null) vm.importBackup(text) else vm.message = "Couldn't open that file"
+    }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Recipes backup & sharing", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Single recipes: open one and tap Share. Here you can save or send all recipes as one file; " +
+                    "friends open it with RatChef, or use Import.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(modifier = Modifier.weight(1f), enabled = vm.recipes.isNotEmpty(), onClick = {
+                    val file = File(File(context.cacheDir, "shared").apply { mkdirs() }, "ratchef-recipes.json")
+                    file.writeText(vm.exportBackup())
+                    val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
+                    val send = Intent(Intent.ACTION_SEND).setType("application/json")
+                        .putExtra(Intent.EXTRA_STREAM, uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    context.startActivity(Intent.createChooser(send, "Send recipes"))
+                }) { Text("Send", maxLines = 1) }
+                OutlinedButton(modifier = Modifier.weight(1f), enabled = vm.recipes.isNotEmpty(), onClick = {
+                    saveLauncher.launch("ratchef-recipes.json")
+                }) { Text("Save", maxLines = 1) }
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = {
+                    openLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                }) { Text("Import", maxLines = 1) }
+            }
+        }
+    }
 }
