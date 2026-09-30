@@ -64,6 +64,40 @@ private const val PROBE_JS = """(function(){
     window.innerWidth + 'x' + window.innerHeight + ' | ' + t.slice(0, 60);
 })()"""
 
+/**
+ * Instagram shows EU visitors a cookie-consent dialog that doesn't draw inside the WebView: only its
+ * dimmed background appears, and that blocks every tap. This answers it the way you would, preferring
+ * "decline optional cookies". With [force] it removes the dialog and its overlay if no button matched.
+ */
+private fun consentJs(force: Boolean) = """(function(){
+  var labels = [/decline optional/i, /optionale cookies ablehnen/i, /only allow essential/i,
+    /nur erforderliche/i, /allow all cookies/i, /alle cookies erlauben/i, /accept all/i, /alle akzeptieren/i];
+  var d = document.querySelector('[role=dialog]');
+  if (!d) return 'no popup';
+  var text = (d.innerText || '').replace(/\s+/g, ' ').trim();
+  var btns = d.querySelectorAll('button, [role=button]');
+  for (var i = 0; i < labels.length; i++) {
+    for (var j = 0; j < btns.length; j++) {
+      if (labels[i].test(btns[j].innerText || '')) { btns[j].click(); return 'answered popup: ' + btns[j].innerText.trim().slice(0, 40); }
+    }
+  }
+  if ($force) {
+    var n = d; while (n.parentElement && n.parentElement !== document.body) n = n.parentElement;
+    n.remove();
+    document.querySelectorAll('div').forEach(function(e){
+      var s = getComputedStyle(e);
+      if (s.position === 'fixed' && e.offsetWidth >= window.innerWidth && e.offsetHeight >= window.innerHeight * 0.9) e.remove();
+    });
+    document.body.style.overflow = 'auto';
+    return 'removed popup: ' + text.slice(0, 80);
+  }
+  return 'popup: ' + text.slice(0, 80) + ' | buttons ' + btns.length;
+})()"""
+
+/** evaluateJavascript hands back a JSON-encoded string. */
+private fun decode(raw: String?): String =
+    runCatching { org.json.JSONArray("[$raw]").getString(0) }.getOrDefault(raw ?: "")
+
 private fun WebView.applyMode(desktop: Boolean, defaultUa: String) {
     settings.userAgentString = chromeUserAgent(defaultUa, desktop)
     // Desktop pages need the wide viewport to fit the phone screen.
@@ -135,7 +169,7 @@ fun InstagramLoginScreen(onSignedIn: () -> Unit, onCancel: () -> Unit) {
                 (problem?.let { "⚠ $it · " } ?: "") + page + (if (probe.isNotEmpty()) "\n$probe" else ""),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                maxLines = 4,
+                maxLines = 5,
                 modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 4.dp),
             )
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -183,14 +217,18 @@ fun InstagramLoginScreen(onSignedIn: () -> Unit, onCancel: () -> Unit) {
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 loading = false
                                 checkDone()
-                                // Instagram renders with JavaScript after "finished"; look a bit later.
-                                view?.postDelayed({
-                                    view.evaluateJavascript(PROBE_JS) { raw ->
-                                        probe = runCatching { org.json.JSONArray("[$raw]").getString(0) }
-                                            .getOrDefault(raw ?: "")
-                                    }
-                                    checkDone()
-                                }, 3000)
+                                // Instagram renders with JavaScript after "finished"; look a bit later,
+                                // answer the consent popup, and try again a few times while it renders.
+                                val v = view ?: return
+                                listOf(1500L, 3500L, 6000L, 9000L).forEachIndexed { attempt, delay ->
+                                    v.postDelayed({
+                                        v.evaluateJavascript(consentJs(force = attempt >= 2)) { raw ->
+                                            val consent = decode(raw)
+                                            v.evaluateJavascript(PROBE_JS) { p -> probe = decode(p) + "\n" + consent }
+                                        }
+                                        checkDone()
+                                    }, delay)
+                                }
                             }
 
                             override fun onReceivedError(
