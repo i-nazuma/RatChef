@@ -13,6 +13,7 @@ import com.ratchef.core.Metric
 import com.ratchef.core.PantryMatcher
 import com.ratchef.core.Recipe
 import com.ratchef.core.RecipeParser
+import com.ratchef.core.RecipeTags
 import com.ratchef.core.RecipeText
 import com.ratchef.core.ShoppingFormat
 import com.ratchef.core.ShoppingMerger
@@ -247,6 +248,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ensureTranslation(recipe)
     }
 
+    // ------------------------------------------------------------------ tags & filters
+
+    /** Vegan counts as vegetarian too; MEAT filter means "with meat or fish". */
+    var dietFilter by mutableStateOf<RecipeTags.Diet?>(null)
+    var effortFilter by mutableStateOf<RecipeTags.Effort?>(null)
+
+    fun diet(r: Recipe): RecipeTags.Diet =
+        runCatching { RecipeTags.Diet.valueOf(r.dietOverride) }.getOrNull()
+            ?: RecipeTags.diet(r.ingredients + (r.translations.values.firstOrNull()?.ingredients ?: emptyList()))
+
+    fun effort(r: Recipe): RecipeTags.Effort =
+        runCatching { RecipeTags.Effort.valueOf(r.effortOverride) }.getOrNull()
+            ?: RecipeTags.effort(r.ingredients, r.steps, r.caption)
+
+    fun minutes(r: Recipe): Int = RecipeTags.minutes(r.steps, r.caption)
+
+    fun matchesFilters(r: Recipe): Boolean {
+        val d = dietFilter
+        if (d != null) {
+            val rd = diet(r)
+            val ok = when (d) {
+                RecipeTags.Diet.VEGAN -> rd == RecipeTags.Diet.VEGAN
+                RecipeTags.Diet.VEGETARIAN -> rd != RecipeTags.Diet.MEAT
+                RecipeTags.Diet.MEAT -> rd == RecipeTags.Diet.MEAT
+            }
+            if (!ok) return false
+        }
+        val e = effortFilter
+        return e == null || effort(r) == e
+    }
+
+    val filteredRecipes: List<Recipe> get() = recipes.filter { matchesFilters(it) }
+
+    /** null resets to the automatic guess. */
+    fun setDiet(id: String, d: RecipeTags.Diet?) = updateRecipe(id) { dietOverride = d?.name ?: "" }
+    fun setEffort(id: String, e: RecipeTags.Effort?) = updateRecipe(id) { effortOverride = e?.name ?: "" }
+
     // ------------------------------------------------------------------ pantry
 
     var pantry by mutableStateOf(store.loadPantry())
@@ -292,7 +330,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val pantryMatches: List<PantryMatch>
         get() {
             if (pantry.isEmpty()) return emptyList()
-            val shownRecipes = recipes.map { shown(it) }
+            val shownRecipes = recipes.filter { matchesFilters(it) }.map { shown(it) }
             return PantryMatcher.rank(pantry, shownRecipes.map { it.ingredients }, settings.assumeBasics)
                 .map { PantryMatch(shownRecipes[it.index], it) }
         }

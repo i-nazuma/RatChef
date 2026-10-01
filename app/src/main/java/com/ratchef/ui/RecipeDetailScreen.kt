@@ -126,6 +126,7 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item { EditableTags(vm, recipe) }
             item {
                 PortionsCard(
                     base = base,

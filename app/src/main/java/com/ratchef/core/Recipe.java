@@ -16,6 +16,9 @@ public final class Recipe {
     public String caption = "";
     public boolean aiParsed = false;
     public long createdAt = 0L;
+    /** Manual tags when the automatic guess is wrong: "" = auto, else a RecipeTags enum name. */
+    public String dietOverride = "";
+    public String effortOverride = "";
     /** Language of title/ingredients/steps above: "en", "de", "es", … or "" if unknown. */
     public String lang = "";
     /** Translations by language code; amounts and units always come from the original. */
@@ -40,6 +43,8 @@ public final class Recipe {
         r.caption = caption;
         r.aiParsed = aiParsed;
         r.createdAt = createdAt;
+        r.dietOverride = dietOverride;
+        r.effortOverride = effortOverride;
         r.lang = lang;
         r.translations.putAll(translations);
         return r;

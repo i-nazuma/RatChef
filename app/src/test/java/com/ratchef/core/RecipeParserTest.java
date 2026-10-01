@@ -228,6 +228,28 @@ public class RecipeParserTest {
     }
 
     @Test
+    public void dietAndEffortTags() {
+        assertEquals(RecipeTags.Diet.VEGETARIAN, RecipeTags.diet(RecipeParser.parse(EN).ingredients)); // butter, cream
+        assertEquals(RecipeTags.Diet.VEGAN, RecipeTags.diet(ings("250 g Rote Linsen", "400 ml Kokosmilch",
+                "1 Zwiebel", "500 ml Gemüsebrühe", "2 EL Currypaste")));
+        assertEquals(RecipeTags.Diet.VEGAN, RecipeTags.diet(ings("200 ml oat milk", "100 g vegan cheese", "1 tbsp peanut butter")));
+        assertEquals(RecipeTags.Diet.MEAT, RecipeTags.diet(ings("500 ml Hühnerbrühe", "1 Zwiebel")));
+        assertEquals(RecipeTags.Diet.MEAT, RecipeTags.diet(ings("2 tbsp fish sauce", "200 g rice noodles")));
+        assertEquals(RecipeTags.Diet.MEAT, RecipeTags.diet(ings("200 g pollo", "1 cebolla")));
+        assertEquals(RecipeTags.Diet.VEGETARIAN, RecipeTags.diet(ings("3 Eier", "100 g Mehl")));
+
+        Recipe quick = RecipeParser.parse(EN);
+        assertEquals(RecipeTags.Effort.QUICK, RecipeTags.effort(quick.ingredients, quick.steps, quick.caption));
+        List<String> slow = Arrays.asList("Marinate the pork overnight.", "Roast for 3 hours at 150 °C.");
+        assertEquals(RecipeTags.Effort.WEEKEND, RecipeTags.effort(ings("1 kg pork shoulder"), slow, ""));
+        assertEquals(30, RecipeTags.minutes(Arrays.asList("Cook pasta 10 minutes.", "Simmer for 15-20 min."), ""));
+        assertEquals(25, RecipeTags.minutes(Arrays.asList("Mix."), "Fertig in 25 Minuten!"));
+        assertEquals(90, RecipeTags.minutes(Arrays.asList("Bake for 1.5 hours."), ""));
+        assertEquals(RecipeTags.Effort.EVERYDAY, RecipeTags.effort(ings("1 Zwiebel", "500 g Faschiertes"),
+                Arrays.asList("Anbraten 10 Minuten.", "Köcheln lassen 40 Minuten."), ""));
+    }
+
+    @Test
     public void shoppingMerge() {
         List<Ingredient> l = new ArrayList<>();
         l.add(RecipeParser.parseIngredient("1 cup heavy cream"));

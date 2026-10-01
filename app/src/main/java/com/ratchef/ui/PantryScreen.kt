@@ -108,6 +108,7 @@ fun PantryScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     }
                 }
             }
+            item(key = "filters") { RecipeFilters(vm) }
             item(key = "basics") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {

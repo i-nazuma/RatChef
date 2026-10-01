@@ -176,6 +176,8 @@ class Store(context: Context) {
             put("ingredients", JSONArray().apply { r.ingredients.forEach { put(ingredientToJson(it)) } })
             put("steps", JSONArray(r.steps))
             put("lang", r.lang)
+            put("diet", r.dietOverride)
+            put("effort", r.effortOverride)
             put("translations", JSONObject().apply {
                 r.translations.forEach { (code, t) ->
                     put(code, JSONObject().apply {
@@ -200,6 +202,8 @@ class Store(context: Context) {
             val st = o.optJSONArray("steps") ?: JSONArray()
             for (k in 0 until st.length()) steps.add(st.getString(k))
             lang = o.optString("lang")
+            dietOverride = o.optString("diet")
+            effortOverride = o.optString("effort")
             o.optJSONObject("translations")?.let { tr ->
                 for (code in tr.keys()) {
                     val t = tr.getJSONObject(code)

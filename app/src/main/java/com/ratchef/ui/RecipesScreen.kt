@@ -102,9 +102,15 @@ fun RecipesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
-        items(vm.recipes, key = { it.id }) { r ->
+        if (vm.recipes.isNotEmpty()) {
+            item(key = "filters") { RecipeFilters(vm) }
+            if (vm.filteredRecipes.isEmpty()) item(key = "nofilter") {
+                Text("No recipes match these filters.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        items(vm.filteredRecipes, key = { it.id }) { r ->
             // New recipes slide in at the top, deleted ones fade out.
-            Box(Modifier.animateItem()) { RecipeCard(vm.shown(r)) { vm.openRecipeId = r.id } }
+            Box(Modifier.animateItem()) { RecipeCard(vm, vm.shown(r)) { vm.openRecipeId = r.id } }
         }
     }
 }
@@ -189,7 +195,7 @@ private fun CaptionCard(vm: AppViewModel, state: ImportState.NeedsCaption) {
 }
 
 @Composable
-private fun RecipeCard(r: Recipe, onClick: () -> Unit) {
+private fun RecipeCard(vm: AppViewModel, r: Recipe, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         VeggieBadge(Veggie.forRecipe(r))
@@ -207,6 +213,7 @@ private fun RecipeCard(r: Recipe, onClick: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            RecipeTagRow(vm, r)
         }
         }
     }
