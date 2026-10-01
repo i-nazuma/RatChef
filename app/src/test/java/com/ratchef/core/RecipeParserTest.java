@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.Test;
 
@@ -196,6 +197,34 @@ public class RecipeParserTest {
         assertEquals(4, backDe.servings);
         assertEquals(de.ingredients.size(), backDe.ingredients.size());
         assertEquals(de.steps.size(), backDe.steps.size());
+    }
+
+    private static List<Ingredient> ings(String... lines) {
+        List<Ingredient> l = new ArrayList<>();
+        for (String s : lines) l.add(RecipeParser.parseIngredient(s));
+        return l;
+    }
+
+    @Test
+    public void pantryMatching() {
+        List<List<Ingredient>> recipes = new ArrayList<>();
+        recipes.add(ings("2 yellow onions", "200 g feta cheese", "1 tbsp olive oil", "salt", "3 tomatoes"));   // 0
+        recipes.add(ings("1 Schalotte", "200 ml Sahne", "250 g Nudeln"));                                       // 1
+        recipes.add(ings("500 g chicken breast", "1 cup rice", "2 tbsp soy sauce"));                            // 2
+        recipes.add(ings("2 tbsp gochujang paste", "200 g mozarella"));                                         // 3
+        List<String> pantry = Arrays.asList("Zwiebeln", "Fetakäse", "2 Paradeiser", "Gochujang", "Mozzarella");
+
+        List<PantryMatcher.Result> res = PantryMatcher.rank(pantry, recipes, true);
+        assertEquals(0, res.get(0).index);          // everything there (oil + salt assumed)
+        assertTrue(res.get(0).complete());
+        assertEquals(3, res.get(0).counted);
+        assertEquals(3, res.get(1).index);          // typo + compound still match
+        assertTrue(res.get(1).complete());
+        PantryMatcher.Result shallot = res.get(2);
+        assertEquals(1, shallot.index);             // shallot ~ onion as a swap
+        assertEquals("Zwiebeln", shallot.swaps.get(0));
+        assertEquals(2, shallot.missing.size());
+        assertEquals(3, res.size());                // chicken/rice recipe: nothing in common -> not listed
     }
 
     @Test

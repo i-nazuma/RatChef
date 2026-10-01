@@ -22,6 +22,8 @@ data class Settings(
     val shoppingGroup: String = "aisle",
     /** Recipes shown "original", in "en", "de", or "auto" (phone language). Translation uses Gemini. */
     val recipeLanguage: String = "original",
+    /** Pantry matching assumes salt, pepper, oil, sugar and flour are at home. */
+    val assumeBasics: Boolean = true,
 ) {
     val listGerman: Boolean
         get() = when (listLanguage) {
@@ -79,6 +81,12 @@ class Store(context: Context) {
         }
     })
 
+    // ------------------------------------------------------------ pantry
+
+    fun loadPantry(): List<String> = readArray("pantry.json").let { a -> (0 until a.length()).map { a.getString(it) } }
+
+    fun savePantry(items: List<String>) = writeArray("pantry.json", JSONArray(items))
+
     /** Merge suggestions the user chose to keep separate. */
     fun loadDismissed(): Set<String> = prefs.getStringSet("dismissedMerges", emptySet())?.toSet() ?: emptySet()
 
@@ -96,6 +104,7 @@ class Store(context: Context) {
         listLanguage = prefs.getString("listLanguage", "auto") ?: "auto",
         shoppingGroup = prefs.getString("shoppingGroup", "aisle") ?: "aisle",
         recipeLanguage = prefs.getString("recipeLanguage", "original") ?: "original",
+        assumeBasics = prefs.getBoolean("assumeBasics", true),
     )
 
     fun saveSettings(s: Settings) {
@@ -107,6 +116,7 @@ class Store(context: Context) {
             .putString("listLanguage", s.listLanguage)
             .putString("shoppingGroup", s.shoppingGroup)
             .putString("recipeLanguage", s.recipeLanguage)
+            .putBoolean("assumeBasics", s.assumeBasics)
             .apply()
     }
 

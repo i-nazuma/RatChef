@@ -15,6 +15,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Badge
@@ -92,6 +93,12 @@ private fun Tabs(vm: AppViewModel, snackbar: SnackbarHostState) {
                     label = { Text("Recipes") },
                 )
                 NavigationBarItem(
+                    selected = vm.tab == Tab.PANTRY,
+                    onClick = { vm.tab = Tab.PANTRY },
+                    icon = { Icon(Icons.Filled.Home, null) },
+                    label = { Text("Pantry") },
+                )
+                NavigationBarItem(
                     selected = vm.tab == Tab.SHOPPING,
                     onClick = { vm.tab = Tab.SHOPPING },
                     icon = {
@@ -128,6 +135,7 @@ private fun Tabs(vm: AppViewModel, snackbar: SnackbarHostState) {
         Crossfade(targetState = vm.tab, animationSpec = tween(200), label = "tabs") { tab ->
             when (tab) {
                 Tab.RECIPES -> RecipesScreen(vm, m)
+                Tab.PANTRY -> PantryScreen(vm, m)
                 Tab.SHOPPING -> ShoppingScreen(vm, m)
                 Tab.SETTINGS -> SettingsScreen(vm, m)
             }

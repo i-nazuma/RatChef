@@ -10,6 +10,7 @@ import com.ratchef.core.Canon
 import com.ratchef.core.Ingredient
 import com.ratchef.core.LanguageGuess
 import com.ratchef.core.Metric
+import com.ratchef.core.PantryMatcher
 import com.ratchef.core.Recipe
 import com.ratchef.core.RecipeParser
 import com.ratchef.core.RecipeText
@@ -28,7 +29,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-enum class Tab { RECIPES, SHOPPING, SETTINGS }
+enum class Tab { RECIPES, PANTRY, SHOPPING, SETTINGS }
+
+/** A saved recipe ranked against the pantry; [recipe] is as displayed (translated if set). */
+data class PantryMatch(val recipe: Recipe, val result: PantryMatcher.Result)
 
 /** A proposed merge of several shopping-list items into one. */
 data class MergeSuggestion(val items: List<ShoppingItem>, val merged: Ingredient, val reason: String) {
@@ -241,6 +245,69 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             message = "Parsed partially – check the recipe or edit the caption."
         }
         ensureTranslation(recipe)
+    }
+
+    // ------------------------------------------------------------------ pantry
+
+    var pantry by mutableStateOf(store.loadPantry())
+        private set
+
+    /** Adds one or more items ("Zwiebeln, Feta, 2 Paradeiser"); duplicates are ignored. */
+    fun addPantry(text: String) {
+        val known = pantry.map { ShoppingMerger.normalizeName(PantryMatcher.cleanName(it)) }.toMutableSet()
+        val added = text.split(',', ';', '\n')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .filter { known.add(ShoppingMerger.normalizeName(PantryMatcher.cleanName(it))) }
+            .map { PantryMatcher.cleanName(it).replaceFirstChar { c -> c.uppercaseChar() } }
+        if (added.isEmpty()) return
+        pantry = pantry + added
+        store.savePantry(pantry)
+    }
+
+    fun removePantry(item: String) {
+        pantry = pantry - item
+        store.savePantry(pantry)
+    }
+
+    fun clearPantry() {
+        pantry = emptyList()
+        store.savePantry(pantry)
+    }
+
+    /** Things ticked off on the shopping list are now at home. */
+    fun addTickedToPantry() {
+        val names = shopping.filter { it.checked }.map { ShoppingFormat.line(it.ingredient.let { i ->
+            Ingredient(Double.NaN, Double.NaN, "", i.name, "") }, settings.listGerman) }
+        if (names.isEmpty()) {
+            message = "Nothing ticked off on the shopping list yet"
+            return
+        }
+        val before = pantry.size
+        addPantry(names.joinToString(","))
+        message = "Added ${pantry.size - before} items to your pantry"
+    }
+
+    /** Saved recipes ranked by how much of them you can cook right now. Offline, no AI. */
+    val pantryMatches: List<PantryMatch>
+        get() {
+            if (pantry.isEmpty()) return emptyList()
+            val shownRecipes = recipes.map { shown(it) }
+            return PantryMatcher.rank(pantry, shownRecipes.map { it.ingredients }, settings.assumeBasics)
+                .map { PantryMatch(shownRecipes[it.index], it) }
+        }
+
+    /** Puts only the missing ingredients of a recipe on the shopping list. */
+    fun addMissingToShopping(match: PantryMatch) {
+        var list = shopping
+        val r = match.recipe
+        for (k in match.result.missing) {
+            val ing = r.ingredients[k].let { if (settings.metric) Metric.convert(it) else it }
+            list = addOne(list, ing, r.title)
+        }
+        shopping = list
+        store.saveShopping(shopping)
+        message = "Added ${match.result.missing.size} missing items to the shopping list"
     }
 
     // ------------------------------------------------------------------ sharing & backup
