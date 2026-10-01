@@ -88,6 +88,7 @@ object GeminiClient {
         {
           "type": "OBJECT",
           "properties": {
+            "source_language": {"type": "STRING"},
             "title": {"type": "STRING"},
             "ingredients": {
               "type": "ARRAY",
@@ -99,7 +100,7 @@ object GeminiClient {
             },
             "steps": {"type": "ARRAY", "items": {"type": "STRING"}}
           },
-          "required": ["title", "ingredients", "steps"]
+          "required": ["source_language", "title", "ingredients", "steps"]
         }
         """.trimIndent()
     )
@@ -125,8 +126,9 @@ object GeminiClient {
     /**
      * Translates title, ingredient names/notes and steps into [targetLang] ("en" or "de").
      * Amounts and units are copied from [r] by position, so a translation can't change a quantity.
+     * Also returns the language the recipe was actually written in (ISO code), so a wrong guess can be fixed.
      */
-    fun translate(r: Recipe, targetLang: String, apiKey: String, model: String): Recipe.Translation {
+    fun translate(r: Recipe, targetLang: String, apiKey: String, model: String): Pair<Recipe.Translation, String> {
         val language = if (targetLang == "de") "German (as used in Austria)" else "English"
         val input = JSONObject().apply {
             put("title", r.title)
@@ -139,6 +141,7 @@ object GeminiClient {
             Translate this recipe into $language. Return the same JSON shape with exactly the same number
             and order of ingredients and steps. Translate ingredient names to the usual supermarket name,
             keep numbers, temperatures and times exactly as they are, keep brand names, and keep empty notes empty.
+            Set "source_language" to the ISO 639-1 code of the language the recipe is written in now.
         """.trimIndent() + "\n\n" + input.toString()
         val parts = JSONArray().put(JSONObject().put("text", prompt))
         val o = call(parts, translationSchema, apiKey, model, 60_000)
@@ -148,6 +151,7 @@ object GeminiClient {
         if (ing.length() != r.ingredients.size || st.length() != r.steps.size) {
             throw IOException("Translation came back incomplete")
         }
+        val source = o.optString("source_language").trim().lowercase().take(2)
         return Recipe.Translation().apply {
             title = o.optString("title").ifBlank { r.title }
             for (k in 0 until ing.length()) {
@@ -162,7 +166,7 @@ object GeminiClient {
                 )
             }
             for (k in 0 until st.length()) steps.add(st.optString(k).trim().ifEmpty { r.steps[k] })
-        }
+        } to source
     }
 
     // ------------------------------------------------------------------ plumbing

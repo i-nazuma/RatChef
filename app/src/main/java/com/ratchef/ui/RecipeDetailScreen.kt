@@ -210,7 +210,6 @@ fun RecipeDetailScreen(vm: AppViewModel, recipe: Recipe, snackbar: SnackbarHostS
 /** "Translated from Spanish · Show original", or progress / a hint when no key is set. */
 @Composable
 private fun LanguageBar(vm: AppViewModel, recipe: Recipe) {
-    val from = LanguageGuess.displayName(recipe.lang)
     val target = vm.recipeTarget ?: return
     val hasTranslation = recipe.translations.containsKey(target)
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
@@ -218,12 +217,12 @@ private fun LanguageBar(vm: AppViewModel, recipe: Recipe) {
             recipe.id in vm.translating -> {
                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
-                Hint("Translating from $from…")
+                Hint("Translating…")
             }
             hasTranslation -> {
                 val original = recipe.id in vm.showOriginal
                 Text(
-                    if (original) "Original ($from)" else "Translated from $from",
+                    if (original) "Original" else "Translated",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),

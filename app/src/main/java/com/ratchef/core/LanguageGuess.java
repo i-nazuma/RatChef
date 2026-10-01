@@ -11,10 +11,13 @@ public final class LanguageGuess {
     static {
         WORDS.put("en", new String[]{"the", "and", "with", "add", "until", "minutes", "cup", "tbsp", "tsp", "into",
                 "salt", "pepper", "mix", "bake", "stir", "of", "for", "chopped", "sauce", "ingredients"});
-        WORDS.put("de", new String[]{"und", "mit", "die", "der", "das", "den", "bis", "minuten", "zugeben", "etwas",
-                "salz", "pfeffer", "geben", "zutaten", "zubereitung", "für", "ein", "eine", "backen", "in"});
-        WORDS.put("es", new String[]{"y", "con", "el", "la", "los", "las", "de", "del", "hasta", "minutos", "sal",
-                "pimienta", "añadir", "agrega", "ingredientes", "preparación", "cucharada", "para", "una", "horno"});
+        WORDS.put("de", new String[]{"und", "mit", "die", "der", "das", "den", "dem", "bis", "minuten", "zugeben",
+                "etwas", "salz", "pfeffer", "geben", "zutaten", "zubereitung", "für", "ein", "eine", "einen", "backen",
+                "ist", "auf", "aus", "dann", "nicht", "zu", "im", "noch", "kurz", "lassen", "anbraten", "köcheln",
+                "hinzufügen", "dazugeben", "gehackt", "zwiebel", "knoblauch", "el", "tl", "prise", "portionen"});
+        WORDS.put("es", new String[]{"y", "con", "los", "las", "del", "hasta", "minutos", "pimienta", "añadir",
+                "agrega", "añade", "ingredientes", "preparación", "cucharada", "cucharadita", "para", "una", "horno",
+                "cebolla", "ajo", "aceite", "sartén", "cocina", "mezcla", "taza", "pizca", "se", "que", "por"});
         WORDS.put("it", new String[]{"e", "con", "il", "la", "di", "del", "fino", "minuti", "sale", "pepe",
                 "aggiungere", "ingredienti", "procedimento", "cucchiaio", "per", "una", "forno", "olio"});
         WORDS.put("fr", new String[]{"et", "avec", "le", "la", "les", "de", "du", "jusqu", "minutes", "sel",

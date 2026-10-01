@@ -49,8 +49,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var recipes by mutableStateOf(
         store.loadRecipes().sortedByDescending { it.createdAt }.onEach { r ->
-            if (r.lang.isEmpty()) {
-                r.lang = LanguageGuess.guess(r.caption + "\n" + r.title + "\n" + r.steps.joinToString("\n"))
+            // Re-check the language of every recipe from its content (an older, weaker guess could be wrong).
+            val guess = LanguageGuess.guess(r.title + "\n" + r.steps.joinToString("\n") + "\n" +
+                r.ingredients.joinToString("\n") { it.name })
+            if (guess.isNotEmpty() && guess != r.lang && !r.aiParsed) {
+                r.lang = guess
+                r.translations.remove(guess)
+            } else if (r.lang.isEmpty()) {
+                r.lang = guess
             }
         }
     )
@@ -319,7 +325,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val result = withContext(Dispatchers.IO) {
                 runCatching { GeminiClient.translate(r, t, s.apiKey, s.model.ifBlank { Settings.DEFAULT_MODEL }) }
             }
-            result.onSuccess { tr -> updateRecipe(r.id) { translations[t] = tr } }
+            result.onSuccess { (tr, source) ->
+                if (source == t) {
+                    // It was already in the target language: fix the label instead of keeping a "translation".
+                    updateRecipe(r.id) { lang = t; translations.remove(t) }
+                } else {
+                    updateRecipe(r.id) {
+                        translations[t] = tr
+                        if (source.length == 2) lang = source
+                    }
+                }
+            }
                 .onFailure { e -> message = "Couldn't translate “${r.title}”: ${e.message}" }
             translating = translating - r.id
         }
@@ -338,8 +354,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun guessLanguage(r: Recipe): String =
-        LanguageGuess.guess(r.caption + "\n" + r.title + "\n" + r.steps.joinToString("\n") +
-            "\n" + r.ingredients.joinToString("\n") { it.name })
+        LanguageGuess.guess(r.title + "\n" + r.steps.joinToString("\n") + "\n" +
+            r.ingredients.joinToString("\n") { it.name }).ifEmpty { LanguageGuess.guess(r.caption) }
 
     // ------------------------------------------------------------------ instagram
 
